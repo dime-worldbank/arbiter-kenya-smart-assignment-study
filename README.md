@@ -20,5 +20,3 @@ In the same folder there should be at least these three folders:
 - Set the right "path" (location of the folder with the three subfolders mentioned above) at the beginning of each code.
 - All codes can be ran using a data pull from Oct 5th 2022 or a data pull from Feb 27th Feb 2023. At the beginning of each code you can change that. 
 - Some codes have instructions at the beginning of each code, follow them. 
-
-Little test, making sure it is still working (to be deleted)
