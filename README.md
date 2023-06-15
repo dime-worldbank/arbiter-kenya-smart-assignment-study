@@ -19,3 +19,11 @@ In the same folder there should be at least these three folders:
 - Set the right "path" (location of the folder with the three subfolders mentioned above) at the beginning of each code.
 - All code can be ran using a data pull from Oct 5th 2022 or a data pull from Feb 27th Feb 2023. At the beginning of each code you can change that. 
 - Some .do files have instructions at the beginning, follow them. 
+
+
+### How to download data from Cadaster:
+This is important so that in every download all data is
+- Download the last version of PostgresSQL
+- Connect to the Cadaster database (a user with a password is necessary)
+- In the data shell of SQL in 
+\copy (Select * From vw_deidentified_case_w_appointer) To 'C:\Users\...\cases_raw_date.csv' With CSV DELIMITER ',' HEADER

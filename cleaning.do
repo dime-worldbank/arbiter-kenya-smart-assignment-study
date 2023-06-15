@@ -3,17 +3,22 @@ Project: World Bank Kenya Arbiter
 PIs: Anja Sautmann and Antoine Deeb
 Purpose: Data cleaning
 Author: Hamza Syed 
-Updated by: Didac Marti Pinto (April 2023)
+Updated by: Didac Marti Pinto
+
+Instructions:
+- Specify at the beginning of the code the desired parameters, including the date of the data pull. 
+- The data pulls that work with this version of the code are: 10Oct2022, 11Jun2023 and 15Jun2023. Newer data pulls will work if downloaded as specified in the readme. 
+- Other non-working dates are: 27Feb2023 (date times are DMY and no under-score in the variables), 14Jun2023 (no under-score in the variables).
 ******************************************************************/
 
 version 17
 clear all
-ssc install fre
+*ssc install fre
 
 //Defining locals for flexible decisions
-local path "C:\Users\user\Dropbox\Arbiter Research\Data analysis"
+local path "C:\Users\didac\Dropbox\Arbiter Research\Data analysis"
 local cutoff = 300 //Number of days after which case is considered lost cause and also number of days before data pull where cases will be considered too recent
-local datapull = "27022023" // "05102022" // "27022023" 
+local datapull = "15062023" // "14062023" // "11062023" //"05102022" //  "27022023" 
 local pandemic_start = "15032020"
 local pandemic_end = "30062021"
 local post_pandemic = 60 //number of days after pandemic to exclude
@@ -44,66 +49,21 @@ local exclusion_issues = "1,2,3,4,5" //Select from list below
 */
 
 //Importing the raw data
-if "`datapull'" == "27022023" {
-	import delimited "`path'\Data_Raw\cases_raw_27Feb2023.csv", clear
-}
-else if "`datapull'" == "05102022" {
-	import delimited "`path'\Data_Raw\cases_raw_05Oct2022.csv", clear
-}
-
-// Rename variables
-if "`datapull'" == "27022023" { // Only necessary for 27Feb2023 data pull
-rename (id referraldate casenumber originalcasenumber valuemode casevalue ///
-casestatus outcomename agreementmode caseoutcomeagreement pendingreason ///
-mediatorappointmentdate conclusiondate forwardedforpaymentdate ///
-casedays mediatorappointmentdays numberofplaintifflanguages ///
-numberofdefendantlanguages casetype courtdivision courttype courtstation ///
-inferredcourt mediatorid referralmode sessiontype ///
-completioncertificatedate createdat updatedat ///
- appointmentdataentrytimestamp appointedatcasecreationtime ///
-appointeruserid oldmediatormac newmediatormac defendantlanguages ///
- plaintifflanguages) ///
-(id referral_date case_number original_case_number value_mode case_value ///
-case_status outcome_name agreement_mode case_outcome_agreement pending_reason ///
-mediator_appointment_date conclusion_date forwarded_for_payment_date ///
-case_days mediator_appointment_days number_of_plaintiff_languages ///
-number_of_defendant_languages case_type court_division court_type court_station ///
-inferred_court mediator_id referral_mode session_type ///
-completion_certificate_date created_at updated_at ///
-appointment_data_entry_timestamp appointed_at_case_creation_time ///
-appointer_user_id old_mediator_mac new_mediator_mac defendant_languages ///
-plaintiff_languages) 
-}
-
+import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear 
 
 //Date variables
 	*Referral date
-		if "`datapull'" == "27022023" {
-			gen ref_date = date(referral_date, "DMY") 
-		}
-		else if "`datapull'" == "05102022" {
-			gen ref_date = date(referral_date, "YMD")
-		}
+		gen ref_date = date(referral_date, "YMD")
 		format ref_date %td
 		label variable ref_date "Referral date"
 
 	*Mediator appointment date
-		if "`datapull'" == "27022023" {
-			gen med_appt_date = date(mediator_appointment_date, "DMY")
-		}
-		else if "`datapull'" == "05102022" {
-			gen med_appt_date = date(mediator_appointment_date, "YMD")
-		}
+		gen med_appt_date = date(mediator_appointment_date, "YMD")
 		format med_appt_date %td
 		label variable med_appt_date "Mediator appointment date"
 
 	*Case conclusion date
-		if "`datapull'" == "27022023" {
-			gen concl_date = date(conclusion_date, "DMY")
-		}
-		else if "`datapull'" == "05102022" {
-			gen concl_date = date(conclusion_date, "YMD")
-		}
+		gen concl_date = date(conclusion_date, "YMD")
 		format concl_date %td
 		label variable concl_date "Case conclusion date"
 
@@ -289,10 +249,30 @@ plaintiff_languages)
 	label variable courttype "Type of court (encoded)"
 
 //Saving cleaned file
-if "`datapull'" == "27022023" {
-	save "`path'/Data_Clean/cases_cleaned_pull27Feb2023.dta", replace
+	save "`path'/Data_Clean/cases_cleaned_`datapull'.dta", replace
+	
+/*
+	// Rename variables
+if "`datapull'" == "14062023" { 
+rename (id referraldate casenumber originalcasenumber valuemode casevalue ///
+casestatus outcomename agreementmode caseoutcomeagreement pendingreason ///
+mediatorappointmentdate conclusiondate forwardedforpaymentdate ///
+casedays mediatorappointmentdays numberofplaintifflanguages ///
+numberofdefendantlanguages casetype courtdivision courttype courtstation ///
+inferredcourt mediatorid referralmode sessiontype ///
+completioncertificatedate createdat updatedat ///
+ appointmentdataentrytimestamp appointedatcasecreationtime ///
+appointeruserid oldmediatormac newmediatormac defendantlanguages ///
+ plaintifflanguages) ///
+(id referral_date case_number original_case_number value_mode case_value ///
+case_status outcome_name agreement_mode case_outcome_agreement pending_reason ///
+mediator_appointment_date conclusion_date forwarded_for_payment_date ///
+case_days mediator_appointment_days number_of_plaintiff_languages ///
+number_of_defendant_languages case_type court_division court_type court_station ///
+inferred_court mediator_id referral_mode session_type ///
+completion_certificate_date created_at updated_at ///
+appointment_data_entry_timestamp appointed_at_case_creation_time ///
+appointer_user_id old_mediator_mac new_mediator_mac defendant_languages ///
+plaintiff_languages) 
 }
-else if "`datapull'" == "05102022" {
-	save "`path'/Data_Clean/cases_cleaned_pull05Oct2022.dta", replace
-}
-
+*/

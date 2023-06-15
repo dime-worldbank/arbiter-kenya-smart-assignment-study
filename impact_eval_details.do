@@ -3,14 +3,43 @@ Project: World Bank Kenya Arbiter
 PIs: Anja Sautmann and Antoine Deeb
 Purpose: Number of mediators used
 Author: Hamza Syed 
-Updated by: Didac Marti Pinto (April 2023)
-Instruction: Change the number of cases in line 10 and run (values = 3,4,5 or 6)
+Updated by: Didac Marti Pinto 
 ******************************************************************/
 
 clear all
-local path "C:\Users\user\Dropbox\Arbiter Research\Data analysis"
+local path "C:\Users\didac\Dropbox\Arbiter Research\Data analysis"
+local datapull =  "15062023" // "11062023" //"05102022" //  "27022023" 
 local min_cases = 4 // Number of cases per mediator
 local current_date = c(current_date)
+
+/*******************************************************************************
+	NUMBER OF COURTSTATIONS
+	- Only courtstations in the impact evaluation i.e.:
+	- Courtstations with more than 10 cases outside pandemic months that were 
+	relevant cases (family, custody...) and not recent.
+*******************************************************************************/
+
+//Importing data
+use "`path'\Data_Clean\cases_cleaned_`datapull'.dta", clear
+
+//Case status, drop pending cases
+tab case_status
+drop if case_status == "PENDING"
+
+//Keeping only relevant cases 
+keep if usable == 1 // Keeping only relevant case types
+drop if issue == 6 | issue == 7 // Dropping pandemic months and newest cases (cutoff)
+
+//Keeping only courtstations with >=10 cases
+bys courtstation:gen stationcases = _N
+
+// Calculate number of courtstations
+preserve 
+	collapse (mean) stationcases, by(courtstation)
+	export delimited "`path'\Output\courts_totalcasenum_pull`datapull'.csv", replace
+	drop if stationcases<10
+	export delimited "`path'\Output\courts_totalcasenum_only10plus_pull`datapull'.csv", replace
+restore
 
 /*******************************************************************************
 	NUMBER OF CASES REFERRED MONTHLY
@@ -20,7 +49,7 @@ local current_date = c(current_date)
 *******************************************************************************/	
 
 //Importing data
-use "`path'/Data_Clean/cases_cleaned_pull27Feb2023.dta", clear
+use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
 
 //Case status, drop pending cases
 tab case_status
@@ -42,37 +71,8 @@ bys ref_month_year: gen cases = _N
 duplicates drop ref_month_year, force
 summ cases
 graph twoway bar cases ref_month_year, graphregion(color(white)) xtitle("month") ytitle("number of cases") title("number of cases referred per month")  
-graph save "`path'/Output/relevant_cases_monthly_`current_date'", replace
-graph export "`path'/Output/relevant_cases_monthly_`current_date'.png", as(png) replace
-restore
-
-/*******************************************************************************
-	NUMBER OF COURTSTATIONS
-	- Only courtstations in the impact evaluation i.e.:
-	- Courtstations with more than 10 cases outside pandemic months that were 
-	relevant cases (family, custody...).
-*******************************************************************************/
-
-//Importing data
-use "`path'\Data_Clean\cases_cleaned_pull27Feb2023.dta", clear
-
-//Case status, drop pending cases
-tab case_status
-drop if case_status == "PENDING"
-
-//Keeping only relevant cases 
-keep if usable == 1
-drop if issue == 6 | issue == 7 // Dropping pandemic months and newest cases (cutoff)
-
-//Keeping only courtstations with >=10 cases
-bys courtstation:gen stationcases = _N
-
-// Calculate number of courtstations
-preserve 
-	collapse (mean) stationcases, by(courtstation)
-	export delimited "`path'\Output\courts_totalcasenum.csv", replace
-	drop if stationcases<10
-	export delimited "`path'\Output\courts_totalcasenum_only10plus.csv", replace
+graph save "`path'/Output/relevant_cases_monthly_pull`datapull'", replace
+graph export "`path'/Output/relevant_cases_monthly_pull`datapull'.png", as(png) replace
 restore
 
 /*******************************************************************************
@@ -84,7 +84,7 @@ restore
 *******************************************************************************/	
 
 //Importing data
-use "`path'/Data_Clean/cases_cleaned_pull27Feb2023.dta", clear
+use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
 
 //Case status, drop pending cases
 tab case_status
@@ -147,7 +147,7 @@ drop if stationcases<10
 	save `month_mediator'
 	restore
 	*merging with original data to get the active months after first appointment for each mediator and calculate case load
-	merge 1:1 mediator_id num_month_year using `month_mediator', gen(_merge)
+	merge 1:m mediator_id num_month_year using `month_mediator', gen(_merge)
 	gen case_month = month(first_case_assn)
 	format case_month %tm
 	gen case_year = year(first_case_assn)
@@ -165,7 +165,7 @@ drop if stationcases<10
 			
 //Calculating value added
 //Importing data
-use "`path'/Data_Clean/cases_cleaned_pull05Oct2022.dta", clear
+use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
 
 //Case status, drop pending cases
 tab case_status
