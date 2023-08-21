@@ -8,12 +8,14 @@ Updated by: Didac Marti Pinto
 
 clear all
 local path "C:\Users\didac\Dropbox\Arbiter Research\Data analysis"
-local datapull =  "15062023" // "11062023" //"05102022" //  "27022023" 
+local datapull =   "05102022" // "15062023" // "11062023" //   "25072023" //
 local min_cases = 4 // Number of cases per mediator
-local current_date = c(current_date)
+local first_data_date "01012022" // DMY. Only relevant dates for caseload
+local last_data_date "01102022" // DMY. Only relevant dates for caseload
+local total_data_months = "9" // Number of months between the two dates above
 
 /*******************************************************************************
-	NUMBER OF COURTSTATIONS
+	OUTSHEET COURTSTATIONS IN THE IMPACT EVALUATION
 	- Only courtstations in the impact evaluation i.e.:
 	- Courtstations with more than 10 cases outside pandemic months that were 
 	relevant cases (family, custody...) and not recent.
@@ -42,26 +44,37 @@ preserve
 restore
 
 /*******************************************************************************
-	NUMBER OF CASES REFERRED MONTHLY
+	RELEVANT NUMBER OF CASES REFERRED MONTHLY: This helps to predict the number 
+	of cases that will arrive every month in the impact evaluation. 
 	- Only cases that will be in the impact evaluation i.e. 
-	- Only cases in courtstations with more than 10 cases.
+	- Only courtstations in the impact eval (with more than 10 relavant cases)
 	- Only relevant types of cases (family, custody...)
 *******************************************************************************/	
 
-//Importing data
-use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
-
+// Keep only courtstation relevant for the VA calculations 
+	* Find the courtstations in the impact eval, temp save it
+	use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
+	drop if case_status == "PENDING" //Drop pending cases
+	keep if usable == 1 // Keeping only relevant case types
+	drop if issue == 6 | issue == 7 // Dropping pandemic months and newest cases (cutoff)
+	bys courtstation:gen stationcases = _N
+	drop if stationcases<10 //Keep only courtstations with >=10 cases
+	gen temp=.
+	collapse temp, by(courtstation)
+	tempfile courtstation_impacteval
+	save `courtstation_impacteval'
+	* Merge with the rest of data
+	use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
+	merge m:1 courtstation using `courtstation_impacteval'
+	keep if _merge== 3
+	
 //Case status, drop pending cases
-tab case_status
+*tab case_status
 *drop if case_status == "PENDING"
 
 //Keeping only relevant cases
 keep if usable == 1
 *drop if issue == 6 | issue == 7 //Dropping pandemic months and recent cases
-
-//Keeping only courtstations with >=10 cases
-bys courtstation:gen stationcases = _N
-drop if stationcases<10
 
 //Calculating number of cases per month
 preserve
@@ -70,33 +83,47 @@ tab ref_month_year
 bys ref_month_year: gen cases = _N
 duplicates drop ref_month_year, force
 summ cases
-graph twoway bar cases ref_month_year, graphregion(color(white)) xtitle("month") ytitle("number of cases") title("number of cases referred per month")  
-graph save "`path'/Output/relevant_cases_monthly_pull`datapull'", replace
-graph export "`path'/Output/relevant_cases_monthly_pull`datapull'.png", as(png) replace
+graph twoway bar cases ref_month_year, graphregion(color(white)) xtitle("month") ytitle("number of cases") title("number of cases referred per month") note("Cases eligible to be in the impact evaluation") 
+*graph save "`path'/Output/relevant_cases_monthly_pull`datapull'", replace
+graph export "`path'/Output/number_of_cases_monthly_impacteval_`datapull'.png", as(png) replace
+collapse (mean) cases, by(ref_month_year)
+export excel using "`path'/Output/number_of_cases_monthly_impacteval_`datapull'..xlsx", firstrow(variables) replace
 restore
 
 /*******************************************************************************
-	CASELOAD PER MEDIATOR PER MONTH
-	- From January 2022 to January 2023 (both included)
+	CASELOAD PER MEDIATOR PER MONTH: Relevant for the power calcs
+	- Only for a period of time (chosen on top of the code)
 	- Only mediators eligible to be in the impact evaluation i.e. 
-	- Mediators in courtstations with at least 10 cases
+	- Mediators in courtstations with at least 10 relevant cases
 	- Mediators with at least K relevant cases s.t. those cases are relevant (family, custody...)cases)
 *******************************************************************************/	
 
 //Importing data
 use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
 
+// Keep only courtstation relevant for the VA calculations /*
+	* Find the courtstations in the impact eval, temp save it
+	drop if case_status == "PENDING" //Drop pending cases
+	keep if usable == 1 // Keeping only relevant case types
+	drop if issue == 6 | issue == 7 // Dropping pandemic months and newest cases (cutoff)
+	bys courtstation:gen stationcases = _N
+	drop if stationcases<10 //Keep only courtstations with >=10 cases
+	gen temp=.
+	collapse temp, by(courtstation)
+	tempfile courtstation_impacteval
+	save `courtstation_impacteval'
+	* Merge with the rest of data
+	use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
+	merge m:1 courtstation using `courtstation_impacteval'
+	keep if _merge== 3
+
 //Case status, drop pending cases
 tab case_status
-drop if case_status == "PENDING"
+*drop if case_status == "PENDING"
 
 //Keeping only relevant cases
 keep if usable == 1
 *drop if issue == 6 | issue == 7 //Dropping pandemic months and recent cases
-
-//Keeping only courtstations with >=10 cases
-bys courtstation:gen stationcases = _N
-drop if stationcases<10
 
 //Keep only mediators with at least x total cases
 	bys mediator_id: gen totalcases=_N //Total cases with relevant case types 
@@ -120,8 +147,8 @@ drop if stationcases<10
 	format num_month_year %tm	
 	*keep if num_year == 2022
 	*drop if num_month == 10
-	keep if num_year == 2022 | num_year == 2023
-	drop if num_month == 2 & num_year == 2023
+	keep if num_days >= date("`first_data_date'","DMY")
+	drop if num_days >= date("`last_data_date'","DMY")
 	*collapsing to get number of cases per mediator per month, conditional on having a case
 	collapse (first) mediator_id first_case_assn, by(id num_month_year)
 	sort num_month_year mediator_id id
@@ -131,7 +158,7 @@ drop if stationcases<10
 	preserve
 	keep mediator_id first_case_assn
 	duplicates drop mediator_id, force
-	expand 13
+	expand `total_data_months'
 	bys mediator_id: gen month = _n
 	tempfile mediators
 	save `mediators'
@@ -147,7 +174,7 @@ drop if stationcases<10
 	save `month_mediator'
 	restore
 	*merging with original data to get the active months after first appointment for each mediator and calculate case load
-	merge 1:m mediator_id num_month_year using `month_mediator', gen(_merge)
+	merge 1:1 mediator_id num_month_year using `month_mediator', gen(_merge)
 	gen case_month = month(first_case_assn)
 	format case_month %tm
 	gen case_year = year(first_case_assn)
@@ -159,8 +186,10 @@ drop if stationcases<10
 	replace cases = 0 if missing(cases)
 	summ cases
 
+
 /*******************************************************************************
-	NUMBER OF MEDIATORS IN TREATMENT AND CONTROL
+	NUMBER OF MEDIATORS IN TREATMENT AND CONTROL UNDER DIFFERENT CONDITIONS
+	- This is relevant for the power calculations
 *******************************************************************************/	
 			
 //Calculating value added
@@ -179,8 +208,7 @@ drop if issue == 6 | issue == 7 //Dropping pandemic months and recent cases
 bys courtstation:gen stationcases = _N
 drop if stationcases<10
 
-//Keep only mediators with at least x total cases
-	
+//Keep only mediators with at least K total cases
 	bys mediator_id: gen totalcases=_N //Total cases with relevant case types 
 	keep if totalcases >= `min_cases' //Total cases with relevant case types
 	

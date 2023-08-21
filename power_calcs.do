@@ -14,13 +14,13 @@ clear all
 capture program drop exp_effect
 program define exp_effect, rclass
 //Defining locals 
-local path "C:\Users\user\Dropbox\Arbiter Research\Data analysis"
+local path "C:\Users\didac\Dropbox\Arbiter Research\Data analysis"
 local current_date = c(current_date)
-local min_cases = 5 // Number of cases per mediator
-local cases_exp = 400 //Number of cases for experimental sample
+local min_cases = 3 // Number of cases per mediator
+local cases_exp = 300 //Number of cases for experimental sample
 
 //Importing data
-use "`path'/Data_Clean/cases_cleaned_pull27Feb2023", clear
+use "`path'/Data_Clean/cases_cleaned_05102022", clear
 
 //Case status, drop pending cases
 tab case_status
@@ -42,6 +42,7 @@ label variable res_rate "Success rate for each casetype"
 
 //Keep only mediators with at least 5 total cases
 bys mediator_id: gen totalcases=_N //Total cases with relevant case types 
+sort id, stable // NEW NEW
 tempfile raw
 save `raw'
 

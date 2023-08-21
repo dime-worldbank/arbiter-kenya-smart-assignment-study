@@ -6,16 +6,17 @@ Author: Hamza Syed
 Updated by: Didac Marti Pinto (April 2023)
 ******************************************************************/
 
-//Defining locals 
-local path "C:\Users\user\Dropbox\Arbiter Research\Data analysis"
+//Define locals 
+local path "C:\Users\didac\Dropbox\Arbiter Research\Data analysis"
 local current_date = c(current_date)
-
-//Importing data
-use "`path'/Data_Clean/cases_cleaned_pull27Feb2023.dta", clear
+local datapull = "25072023" // "15062023" // "11062023" // "05102022" // "14062023" 
 
 /*******************************************************************************
 	NUMBER OF CASES PER MEDIATOR WITH DIFFERENT RESTRICTIONS
 *******************************************************************************/
+
+//Import data
+use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
 
 //Number of cases per mediator with different restrictions
 	*No restrictions
@@ -24,8 +25,8 @@ use "`path'/Data_Clean/cases_cleaned_pull27Feb2023.dta", clear
 	label variable cases "Number of cases"
 	summ cases
 	hist cases, graphregion(color(white)) width(1) start(0) color(edkblue) freq ytitle("Number of mediators") title("Number of cases per mediator") note("No restrictions on cases")
-	graph save "`path'/Output/cases_per_mediator_raw_`current_date'", replace
-	graph export "`path'/Output/cases_per_mediator_raw_`current_date'.png", as(png) replace
+	 *graph save "`path'/Output/cases_per_mediator_raw_`datapull'", replace
+	graph export "`path'/Output/cases_per_mediator_raw_`datapull'.png", as(png) replace
 	forvalues i = 3/9 {
 		gen more_than_`i' = 1 if cases > `i' 
 	}
@@ -35,26 +36,27 @@ use "`path'/Data_Clean/cases_cleaned_pull27Feb2023.dta", clear
 	save `no_restr'
 	restore
 	
-	*Only family, succession and related cases
+	* Only relevant case types - Children Custody and Maintenance, Matrimonial Property Cases and Succession (Probate & Administration - P&A)
+	* No cases with a data exclusion condition (issues 1 to 5)
 	preserve
 	keep if usable == 1
 	collapse (count) cases=id, by(mediator_id)
 	label variable cases "Number of cases"
 	summ cases
 	summ cases if cases >= 10
-	hist cases, graphregion(color(white)) width(1) start(0) color(edkblue) freq ytitle("Number of mediators") title("Number of cases per mediator") note("Family, succession and other related cases")
-	graph save "`path'/Output/cases_per_mediator_family_`current_date'", replace
-	graph export "`path'/Output/cases_per_mediator_family_`current_date'.png", as(png) replace
+	hist cases, graphregion(color(white)) width(1) start(0) color(edkblue) freq ytitle("Number of mediators") title("Number of cases per mediator") note("Only relevant case types. No cases with a data exclusion condition.")
+	 *graph save "`path'/Output/cases_per_mediator_family_`datapull'", replace
+	graph export "`path'/Output/cases_per_mediator_family_`datapull'.png", as(png) replace
 	forvalues i = 3/9 {
 		gen more_than_`i' = 1 if cases > `i' 
 	}
 	collapse (sum) more_than_*
-	gen data_restriction = "Only family, succession and other related cases"
+	gen data_restriction = "Only relevant cases. No cases with a data exclusion condition."
 	tempfile family
 	save `family'
 	restore
 	
-	*Excluding pandemic and recent cases
+	*Same as above, but also exclude pandemic and recent cases
 	preserve
 	keep if usable == 1
 	drop if issue == 6 | issue == 7
@@ -62,18 +64,18 @@ use "`path'/Data_Clean/cases_cleaned_pull27Feb2023.dta", clear
 	label variable cases "Number of cases
 	summ cases
 	summ cases if cases >= 10
-	hist cases, graphregion(color(white)) width(1) start(0) color(edkblue) freq ytitle("Number of mediators") title("Number of cases per mediator") note("Family, succession and other related cases, excluding pandemic (Mar2020-Aug2021) and recent cases")
-	graph save "`path'/Output/cases_per_mediator_family_excpand_`current_date'", replace
-	graph export "`path'/Output/cases_per_mediator_family_excpand_`current_date'.png", as(png) replace
+	hist cases, graphregion(color(white)) width(1) start(0) color(edkblue) freq ytitle("Number of mediators") title("Number of cases per mediator") note("Only relevant case types. Exclude pandemic and recent cases. No cases with a data exclusion condition.")
+	 *graph save "`path'/Output/cases_per_mediator_family_excpand_`datapull'", replace
+	graph export "`path'/Output/cases_per_mediator_family_excpand_`datapull'.png", as(png) replace
 	forvalues i = 3/9 {
 		gen more_than_`i' = 1 if cases > `i' 
 	}
 	collapse (sum) more_than_*
-	gen data_restriction = "Family etc, excluding pandemic and recent"
+	gen data_restriction = "Only relevant cases. No pandemic or recent cases. No cases with a data exclusion condition.."
 	tempfile family_nopandemic
 	save `family_nopandemic'
 	restore
-	*Only Jan 2019 to Feb 2020
+	/*Only Jan 2019 to Feb 2020
 	preserve
 	keep if ref_date >= date("01012019", "DMY") & ref_date < date("01032020", "DMY")
 	keep if usable == 1
@@ -82,8 +84,8 @@ use "`path'/Data_Clean/cases_cleaned_pull27Feb2023.dta", clear
 	summ cases
 	summ cases if cases >= 10
 	hist cases, graphregion(color(white)) width(1) start(0) color(edkblue) freq ytitle("Number of mediators") title("Number of cases per mediator") note("Family, succession and other related cases, Jan2019 to Feb2020")
-	graph save "`path'/Output/cases_per_mediator_family_2019-202002_`current_date'", replace
-	graph export "`path'/Output/cases_per_mediator_family_2019-202002_`current_date'.png", as(png) replace
+	graph save "`path'/Output/cases_per_mediator_family_2019-202002_`datapull'", replace
+	graph export "`path'/Output/cases_per_mediator_family_2019-202002_`datapull'.png", as(png) replace
 	restore
 	*Only Jan 2021 to Feb 2022
 	preserve
@@ -94,8 +96,8 @@ use "`path'/Data_Clean/cases_cleaned_pull27Feb2023.dta", clear
 	summ cases
 	summ cases if cases >= 10
 	hist cases, graphregion(color(white)) width(1) start(0) color(edkblue) freq ytitle("Number of mediators") title("Number of cases per mediator") note("Family, succession and other related cases, Jan2021 to Feb2022")
-	graph save "`path'/Output/cases_per_mediator_family_2021-202202_`current_date'", replace
-	graph export "`path'/Output/cases_per_mediator_family_2021-202202_`current_date'.png", as(png) replace
+	graph save "`path'/Output/cases_per_mediator_family_2021-202202_`datapull'", replace
+	graph export "`path'/Output/cases_per_mediator_family_2021-202202_`datapull'.png", as(png) replace
 	forvalues i = 3/9 {
 		gen more_than_`i' = 1 if cases > `i' 
 	}
@@ -104,42 +106,62 @@ use "`path'/Data_Clean/cases_cleaned_pull27Feb2023.dta", clear
 	tempfile family_2122
 	save `family_2122'
 	restore
-
+*/
 	preserve
 	use `no_restr', clear
 	append using `family'
 	append using `family_nopandemic'
-	append using `family_2122'
-	export excel using "`path'/Output/mediators_cases_`current_date'.xlsx", firstrow(variables) replace
+	*append using `family_2122'
+	export excel using "`path'/Output/cases_per_mediator_`datapull'.xlsx", firstrow(variables) replace
 	restore
 
 /*******************************************************************************
-	NUMBER OF CASES MONTHLY
+	NUMBER OF CASES REFERRED MONTHLY
 *******************************************************************************/	
+
+//Import data
+	use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear	
 	
-//Keeping only relevant cases
-keep if usable == 1
+//Keep only relevant cases. No cases with a data exclusion condition (issues 1 to 5).
+	keep if usable == 1
 
 //Number of cases referred per month
-gen case = 1
-egen monthly_cases = total(case), by(ref_month_year)
-drop case
-twoway bar monthly_cases ref_month_year, base(0) graphregion(color(white)) xtitle("month") ytitle("number of cases") title("number of cases referred per month") xlabel(#7)
-graph save "`path'/Output/number_of_cases_monthly_`current_date'", replace
-graph export "`path'/Output/number_of_cases_monthly_`current_date'.png", as(png) replace
+	gen case = 1
+	egen monthly_cases = total(case), by(ref_month_year)
+	drop case
+	twoway bar monthly_cases ref_month_year, base(0) graphregion(color(white)) xtitle("month") ytitle("number of cases") 	title("number of cases referred per month") xlabel(#7) note("Only relevant case types. No cases with a data exclusion condition.")
+	*graph save "`path'/Output/number_of_cases_monthly_`datapull'", replace
+	graph export "`path'/Output/number_of_cases_monthly_`datapull'.png", as(png) replace
 
 
 /*******************************************************************************
-	COURTSTATIONS
+	CASE TYPES OVER COURTSTATIONS AND YEARS
 *******************************************************************************/	
+
+//Import data
+use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear	
+	
+//Keep only relevant cases. No cases with a data exclusion condition (issues 1 to 5).
+keep if usable == 1
 
 //Crosstab of courtstation and casetype
 tab courtstation case_type
-tab2xl court_station case_type using "`path'/Output/casetype_courtstation_`current_date'", col(1) row(1) replace
+tab2xl court_station case_type using "`path'/Output/casetype_courtstation_`datapull'", col(1) row(1) replace
 
 //Casetypes by year
 tab ref_year case_type
-tab2xl ref_year case_type using "`path'/Output/year_casetype_`current_date'", col(1) row(1) replace
+tab2xl ref_year case_type using "`path'/Output/casetype_year_`datapull'", col(1) row(1) replace
+
+/*******************************************************************************
+	CADASTER ROLLOUT
+*******************************************************************************/	
+
+/*
+//Import data
+use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear	
+	
+//Keep only relevant cases. No cases with a data exclusion condition (issues 1 to 5).
+keep if usable == 1
 
 //Courtstations with access to cadaster by month
 preserve
@@ -163,8 +185,8 @@ format newdate %tm
 drop date_temp instance rollout_month_year
 rename newdate rollout_month_year
 twoway bar monthly_courts rollout_month_year, base(0) graphregion(color(white)) xtitle("month") ytitle("number of court stations") title("number of court stations with access to cadaster per month") xlabel(#7)
-graph save "`path'/Output/courts_with_cadaster_monthly_`current_date'", replace
-graph export "`path'/Output/courts_with_cadaster_monthly_`current_date'.png", as(png) replace
+graph save "`path'/Output/courts_with_cadaster_monthly_`datapull'", replace
+graph export "`path'/Output/courts_with_cadaster_monthly_`datapull'.png", as(png) replace
 drop monthly_cadaster
 gen ref_month_year = rollout_month_year
 tempfile courts_using_cadaster
@@ -194,8 +216,8 @@ sort newdate
 drop date_temp instance first_med_assn_month_year
 rename newdate first_med_assn_month_year
 twoway bar monthly_courts_assn first_med_assn_month_year, base(0) graphregion(color(white)) xtitle("month") ytitle("number of court stations") title("number of court stations using mediation per month") xlabel(#7)
-graph save "`path'/Output/courts_using_mediation_`current_date'", replace
-graph export "`path'/Output/courts_using_mediation_`current_date'.png", as(png) replace
+graph save "`path'/Output/courts_using_mediation_`datapull'", replace
+graph export "`path'/Output/courts_using_mediation_`datapull'.png", as(png) replace
 restore
 
 
@@ -228,17 +250,32 @@ label variable pre_rollout_cases "Cases in mediation before cadaster"
 label variable post_rollout_cases "Cases in mediation after cadaster"
 label variable first_appoint_post_rollout "First mediator appointment date after rollout of cadaster"
 label variable gap_rollout_assn "Days between rollout and first mediator appointment using cadaster"
-export excel using "`path'/Output/rollout_by_courtstation_`current_date'.xlsx", firstrow(variables) replace
+export excel using "`path'/Output/rollout_by_courtstation_`datapull'.xlsx", firstrow(variables) replace
 hist gap_rollout_assn, graphregion(color(white)) width(5) start(0) color(edkblue) freq title("Gap between rollout and first appointment post rollout") note("Bar width is 5, starting from 0")
-graph save "`path'/Output/gap_rollout_assign_`current_date'", replace
-graph export "`path'/Output/gap_rollout_assign_`current_date'.png", as(png) replace
+graph save "`path'/Output/gap_rollout_assign_`datapull'", replace
+graph export "`path'/Output/gap_rollout_assign_`datapull'.png", as(png) replace
 restore
 
+*/
+
+/*******************************************************************************
+	OUTCOMES
+*******************************************************************************/
+
+//Import data
+use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear	
+	
+//Keep only relevant cases. No cases with a data exclusion condition (issues 1 to 5).
+keep if usable == 1
+
+// Drop pandemic and recent cases
+drop if issue == 6 | issue == 7
+	
 //Mean and standard deviation of outcomes by courtstation
 preserve
 collapse (mean) mean_days=case_days_med mean_success=success (sd) st_dev_days=case_days_med st_dev_success=success (count) cases=id (sum) successful=success (first) rollout, by(courtstation)
 sort mean_days
 order courtstation rollout cases successful mean_days st_dev_days mean_success st_dev_success 
-export excel using "`path'/Output/mean_days_by_courtstation_`current_date'.xlsx", firstrow(variables) replace
+export excel using "`path'/Output/outcomes_courtstation_`datapull'.xlsx", firstrow(variables) replace
 restore
 
