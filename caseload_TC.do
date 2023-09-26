@@ -37,11 +37,10 @@ save `VA_groups'
 //Import data
 use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
 
-//Create some useful variables and drop some observations
-
 	// Add to each mediator info on the groups they belong to
 	merge m:1 mediator_id using `VA_groups'
-
+	
+//Create some useful variables and drop some observations
 	// Gen first_case_assn: First date a mediator was assigned a case
 	bys mediator_id: egen first_case_assn = min(med_appt_date)
 	format first_case_assn %td
@@ -69,6 +68,7 @@ use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
 	// Keep only cases from Jan 2022 to May 2023 
 	keep if num_days >= date("`first_data_date'","DMY")
 	drop if num_days >= date("`last_data_date'","DMY")
+
 	
 // STATISTIC 1: Maximum number of simultaneous cases a mediator dealt with 
 // simultaneously. 
@@ -96,7 +96,16 @@ preserve
 	// Collapse to find the maximum number of cases a mediator deal with a single day
 	collapse (max) cases  (mean) group_tv (mean) tv, by(mediator_id)
 		
-	// Histogram
+	// Histograms
+	** Only C
+	hist cases if group_tv == 0, width(1) freq xlabel(#13) xscale(range(0 13)) discrete title("Bottom 50% of mediators") xtitle("Max simultaneous cases")
+	graph export "`path'/Output/cases_per_mediator_max_C_from`first_data_date'_pull`datapull'.png", as(png) replace
+	
+	** Only T
+	hist cases if group_tv == 1, width(1) freq xlabel(#13) xscale(range(0 13)) discrete title("Top 50% of mediators") xtitle("Max simultaneous cases")
+	graph export "`path'/Output/cases_per_mediator_max_T_from`first_data_date'_pull`datapull'.png", as(png) replace
+	
+	** Both T and C
 	twoway (hist cases if group_tv == 0, width(1) color(red%30)) ///
 	(hist cases if group_tv == 1, width(1) color(green%30)), ///
 	legend(order(1 "Control" 2 "Treatment" )) xtitle("Number of cases") ///
@@ -187,7 +196,16 @@ restore
 	// They could be simultaneous or not. 
 	collapse (mean) cases group_tv, by(mediator_id) 
 	
-	// Histogram
+	// Histograms
+	** Only C
+	hist cases if group_tv == 0, width(1) start(0) freq xlabel(#15) xscale(range(0 15))  title("Bottom 50% of mediators") xtitle("Number of cases")
+	graph export "`path'/Output/cases_per_mediator_month_C_from`first_data_date'_pull`datapull'.png", as(png) replace
+	
+	** Only T
+	hist cases if group_tv == 1, width(1) start(0) freq xlabel(#15) xscale(range(0 15)) title("Top 50% of mediators") xtitle("Number of cases")
+	graph export "`path'/Output/cases_per_mediator_month_T_from`first_data_date'_pull`datapull'.png", as(png) replace
+	
+	** Both C and T
 	twoway (hist cases if group_tv == 0, width(1) start(0) color(red%30)) ///
 	(hist cases if group_tv == 1, width(1) start(0) color(green%30)), ///
 	legend(order(1 "Control" 2 "Treatment" )) xtitle("Number of cases") ///
@@ -200,17 +218,48 @@ restore
 	esttab all using "`path'/Output/cases_per_mediator_month_TC_from`first_data_date'_pull`datapull'.xls", ///
 	cells("count(fmt(0)) mean(fmt(2)) sd(fmt(2))") label replace
 	
+/*******************************************************************************
+	TOTAL CASES COMPLETED BY T AND C
+*******************************************************************************/
 
-/*
-	Maximum num of cases     
-	2022-2023   2023   Last 3 months 
-	
-	Mean num of cases dealt with per month
-	Conditional on having dealt with at least 1 case       Unconditional 
-	2022-2023   2023   Last 3 months 
-	
-*/
+//Import data
+use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
 
+// Add to each mediator info on the groups they belong to
+merge  m:1 mediator_id using `VA_groups'
+
+// All cases
+preserve
+	egen total_cases_concl_C = count(mediator_id) if concl_date > date("01032023","DMY") & concl_date <date("01062023","DMY") & group_tv == 0
+	egen total_cases_concl_T = count(mediator_id) if concl_date > date("01032023","DMY") & concl_date <date("01062023","DMY") & group_tv == 1
+	egen total_cases_agree_C = count(mediator_id) if concl_date > date("01032023","DMY") & concl_date <date("01062023","DMY") & group_tv == 0 & case_outcome_agreement == 1
+	egen total_cases_agree_T = count(mediator_id) if concl_date > date("01032023","DMY") & concl_date <date("01062023","DMY") & group_tv == 1 & case_outcome_agreement == 1
+	
+	summ total_cases_concl_C total_cases_concl_T total_cases_agree_C total_cases_agree_T
+restore
+
+// Only cases elegible to be in the experiment
+	// Keep only cases relevant for the VA calculations 
+		//Keep only relevant cases 
+		keep if usable == 1 // Keeping only relevant case types
+		drop if issue == 6 | issue == 7 // Dropping pandemic months and newest cases (cutoff)
+
+	//Keep only courtstations with >=10 cases
+		bys courtstation:gen stationcases = _N
+		drop if stationcases<10
+
+	//Keep only mediators with at least K total cases
+	bys mediator_id: gen totalcases=_N //Total cases with relevant case types 
+	keep if totalcases >= 4
+
+	egen total_cases_concl_C = count(mediator_id) if concl_date > date("01032023","DMY") & concl_date <date("01062023","DMY") & group_tv == 0
+	egen total_cases_concl_T = count(mediator_id) if concl_date > date("01032023","DMY") & concl_date <date("01062023","DMY") & group_tv == 1
+	egen total_cases_agree_C = count(mediator_id) if concl_date > date("01032023","DMY") & concl_date <date("01062023","DMY") & group_tv == 0 & case_outcome_agreement == 1
+	egen total_cases_agree_T = count(mediator_id) if concl_date > date("01032023","DMY") & concl_date <date("01062023","DMY") & group_tv == 1 & case_outcome_agreement == 1
+	
+	summ total_cases_concl_C total_cases_concl_T total_cases_agree_C total_cases_agree_T
+	
+	
 	
 	
 	

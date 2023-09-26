@@ -52,7 +52,7 @@ use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
 	save `mediator_stats'
 
 *** IMPORT DATA
-import delimited "C:\Users\didac\OneDrive\Escritorio\Smart_Judge_Appointed.csv", clear
+import delimited "`path'/Data_Raw/smart_judge_appointed.csv", clear
 	
 	** Selected mediators 
 	* Match with their VA and other statistics
