@@ -23,6 +23,7 @@ local min_cases = 4 // Number of cases per mediator
 local cases_exp = 300 //Number of cases for experimental sample
 local p = 50 // 50 or 30
 local np = 100-`p'
+local step1 = 1 // 1 if step 1 is used. 2 otherwise
 
 capture program drop exp_effect
 program define exp_effect, rclass
@@ -35,6 +36,7 @@ local min_cases = 4 // Number of cases per mediator
 local cases_exp = 300 //Number of cases for experimental sample
 local p = 50 // 50 or 30
 local np = 100-`p'
+local step1 = 1 // 1 if step 1 is used. 2 otherwise
 
 //Import data
 use "`path'/Data_Clean/cases_cleaned_15062023.dta", clear
@@ -51,20 +53,23 @@ drop if issue == 6 | issue == 7 //Dropping pandemic months
 bys courtstation:gen stationcases = _N
 drop if stationcases<10
 
-//Keep only mediators with at least 5 total cases
+// Create number of cases per mediator
 bys mediator_id: gen totalcases=_N //Total cases with relevant case types 
-sort id, stable // NEW NEW
+sort id, stable 
 tempfile raw
 save `raw'
-keep if totalcases >= `min_cases'
 
 //Draw sample with replacement 
-*bsample if totalcases >= `min_cases', strata(mediator_id)
+if `step1' == 1 {
+	bsample if totalcases >= `min_cases', strata(mediator_id)
+}
 
 tempfile sampled
 save `sampled'
 
 //Calculate value added
+	* Keep only mediators with at least K total cases for VA estimation
+	keep if totalcases >= `min_cases'
 	* Shrunk estimator
 	egen med_year=group(mediator_id appt_year)
 	local state = c(rngstate)
@@ -84,13 +89,13 @@ collapse va_s va_u, by(mediator_id)
 drop if va_s == .
 
 //Assign mediators to treatment and control group
-_pctile va_s, p(`p' `np') //Change this for different values of p - the values are (p 100-p)
-return list
-scalar r1=r(r1)
-scalar r2=r(r2)
-gen treatment = 1 if va_s >= r2
-replace treatment = 0 if va_s <= r1 
-tab treatment,m
+*_pctile va_s, p(`p' `np') //Change this for different values of p - the values are (p 100-p)
+*return list
+*scalar r1=r(r1)
+*scalar r2=r(r2)
+gen treatment = 1 if va_s > 0
+replace treatment = 0 if va_s <= 0
+*tab treatment,m
 drop if missing(treatment)
 tab treatment 
 local tot_med = r(N) 
@@ -165,11 +170,11 @@ gen pred_s_round = round(pred_s)
 //Output
 	*calculate the treatment effect and whether it is significant or not
 		* No flip
-		reghdfe case_outcome_agreement treatment, noabsorb nocons
+		reghdfe case_outcome_agreement treatment i.appt_month_year i.casetype i.courttype i.courtstation i.referralmode, noabsorb nocons
 		return scalar b = el(r(table),1,1)
 		return scalar p = el(r(table),4,1)
 		* Flip 
-		reghdfe case_outcome_agreement_flip treatment, noabsorb nocons
+		reghdfe case_outcome_agreement_flip treatment i.appt_month_year i.casetype i.courttype i.courtstation i.referralmode, noabsorb nocons
 		return scalar b_flip = el(r(table),1,1)
 		return scalar p_flip = el(r(table),4,1)
 	*return brier scores
@@ -383,8 +388,8 @@ tab sig,m
 
 //Display the results of the simulation
 eststo rts_final: estpost summ avg_success avg_success_flip avg_success_diff avg_success_diff_flip p p_flip brier_s brier_s_flip pred_correct_s pred_correct_s_flip b b_flip t_s t_u diff_va_s diff_va_s_flip diff_va_s_sq diff_va_s_sq_flip diff_va_u diff_va_u_flip diff_va_u_sq diff_va_u_sq_flip sig
-esttab rts_final using "`path'/Output/power_calcs/p`p'_c`cases_exp'_m`min_cases'_nsim`n_sim'_pull`datapull'.rtf", cells("count mean sd min max") replace
-
+esttab rts_final using "`path'/Output/PAP/pc_step`step1'_p`p'_c`cases_exp'_m`min_cases'_nsim`n_sim'_pull`datapull'.rtf", cells("count mean sd min max") replace
+/*
 // Graphs
 	** Kdensity of Diff_VA and Diff_VA_sq
 	* Difference VA shrunk
@@ -412,3 +417,6 @@ graph export "`path'/Output/power_calcs/kdens_diff_u_p`p'_c`cases_exp'_m`min_cas
 	xtitle("Percent correct predictions") legend(label(1 "Predictions") ///
 	label(2 "Predictions flipped outcomes")) ytitle(Frequency)
 	graph export "`path'/Output/simul_corrpred_s_p`p'_c`cases_exp'_m`min_cases'_nsim`n_sim'_pull`datapull'.png", as(png) replace
+	*/
+	
+	*save "C:\Users\didac\OneDrive\Escritorio\datasets\pc_step`step1'_p`p'_c`cases_exp'_m`min_cases'_nsim`n_sim'_pull`datapull'.rtf.dta", replace 

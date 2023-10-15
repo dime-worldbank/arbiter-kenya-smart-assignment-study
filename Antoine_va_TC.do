@@ -12,7 +12,6 @@ ssc install vam
 local path "C:\Users\didac\Dropbox\Arbiter Research\Data analysis"
 local datapull = "15062023" // "11062023" //"05102022" //  "27022023" 
 local min_cases = 4 
-local outcome_variables = "case_days_med success conclude_70" 
 
 // Import data
 use "`path'\Data_Clean\cases_cleaned_`datapull'.dta", clear
@@ -37,26 +36,22 @@ use "`path'\Data_Clean\cases_cleaned_`datapull'.dta", clear
 	egen med_year=group(mediator_id appt_year)
 
 // VA calculations
-vam case_outcome_agreement, teacher(mediator_id) year(appt_year) class(med_year) controls(i.appt_year i.casetype i.courttype i.courtstation i.referralmode) tfx_resid(mediator_id) data(merge tv)
+	vam case_outcome_agreement, teacher(mediator_id) year(appt_year) ///
+	driftlimit(3) class(med_year) controls(i.appt_month_year i.casetype ///
+	i.courttype i.courtstation i.referralmode) tfx_resid(mediator_id) ///
+	data(merge tv)
 collapse tv, by(mediator_id)
 *sum tv
 *hist tv
 
-// Generate T and C groups. 
-// group_tv=1 (high) and group_tv=0 (low)
-drop if tv ==. // Need to check why they are missing
-egen median_tv = pctile(tv), p(50) // Get the median
-gen group_tv = 1 if tv > median_tv
-replace group_tv = 0 if group_tv ==.
-drop median_tv
+// Generate T and C groups.
+drop if tv == . 
+gen group_tv = 1 if tv > 0
+replace group_tv = 0 if tv <=0
+
 
 // Save 
 export delimited "`path'\Output\va_groups_pull`datapull'.csv", replace
-
-
-
-
-
 
 /*
 // Count mediators before VA calculations

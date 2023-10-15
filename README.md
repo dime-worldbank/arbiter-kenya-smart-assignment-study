@@ -9,6 +9,12 @@ Data analysis code for Arbiter Kenya (aka Cadaster)'s smart assignment study
 - power_calcs.do: Reports the power calculations. It does not export any result, the results appear in the screen. 
 - caseload_TC.do: Compares the previous caseload of mediators in groups T and C and non-experimental mediators. 
 - Judges_appoitnment.do: Compares the mediators chosen by Judges during the impact evaluation to those recommended by Smart Assignment
+- va_shrunk_unshrunk.do: Some comparisions between the shrunk VA and unshrunk VA estimators
+- va_TC_diff_unshrunk.do: Compare T and C groups using the shrunk and unshrunk estimators. 
+- PAP_descriptive.do: Creates descriptive statistics for the PAP
+- PAP_powercalcs.do: Power calculations for the PAP
+- PAP_simul.do: Power calculations and other results e.g. Brier scores for the PAP.
+ 
 
 #### Folder structure: 
 In the same folder there should be at least these three folders:
