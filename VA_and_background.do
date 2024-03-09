@@ -138,13 +138,32 @@ label values religionid religionlab
 
 
 * Keep only VA and background
-keep mediator_id va_s va_u genderenc age religionid langenc_* profession_short_* 
+keep mediator_id va_s va_u genderenc age age2 religionid langenc_* profession_short_* 
 keep if va_s !=. | va_u !=.
 drop langenc_12 // drop English
 
 * Tempsave for later analysis
 tempfile va_controls // tempfile for merge
 save `va_controls'
+
+/*******************************************************************************
+	PRE-ANALYSIS: Return percentiles of VA distributions
+*******************************************************************************/
+
+* VA shrunk
+ _pctile va_s, p(25, 75)
+ return list
+ * 25th-pctl = -.0188586842268705
+ * 75th-pctl = .0144229400902987
+ * Diff = 0.0332816243171692
+ 
+* VA unshrunk
+ _pctile va_u, p(25, 75)
+ return list
+ * 25th-pctl = -.1557433307170868
+ * 75th-pctl = .1046634465456009
+ * Diff = 0.260406777262686
+
 
 
 /*******************************************************************************
@@ -160,19 +179,19 @@ reg va_s i1.genderenc if va_s !=., vce(robust)
 outreg2 using "`path'\Output\Background_VA_Reg.doc", replace label
 
 * Reg 2: Gender + basic controls
-reg va_s i1.genderenc age i.religionid if va_s !=., vce(robust)
+reg va_s i1.genderenc age age2 i.religionid if va_s !=., vce(robust)
 outreg2 using "`path'\Output\Background_VA_Reg.doc", append label
 
 * Reg 3: Gender + basic controls + lang
-reg va_s i1.genderenc age i.religionid langenc_* if va_s !=., vce(robust)
+reg va_s i1.genderenc age age2 i.religionid langenc_* if va_s !=., vce(robust)
 outreg2 using "`path'\Output\Background_VA_Reg.doc", append label
 
 * Reg 4: Gender + basic controls + prof
-reg va_s i1.genderenc age i.religionid profession_short_* if va_s !=., vce(robust)
+reg va_s i1.genderenc age age2 i.religionid profession_short_* if va_s !=., vce(robust)
 outreg2 using "`path'\Output\Background_VA_Reg.doc", append label
 
 * Reg 5: Gender + basic controls + lang + prof
-reg va_s i1.genderenc age i.religionid langenc_* profession_short_* if va_s !=., vce(robust)
+reg va_s i1.genderenc age age2 i.religionid langenc_* profession_short_* if va_s !=., vce(robust)
 coefplot, drop(_cons) title(VA and background variables) subtitle(Shrunk VA)
 graph export "`path'/Output/Background_VA_coeffs_shrunk.png", as(png) replace
 outreg2 using "`path'\Output\Background_VA_Reg.doc", append label
@@ -185,19 +204,19 @@ reg va_u i1.genderenc if va_u !=., vce(robust)
 outreg2 using "`path'\Output\Background_VA_Reg.doc", append label
 
 * Reg 2: Gender + basic controls
-reg va_u i1.genderenc age i.religionid if va_u !=., vce(robust)
+reg va_u i1.genderenc age age2 i.religionid if va_u !=., vce(robust)
 outreg2 using "`path'\Output\Background_VA_Reg.doc", append label
 
 * Reg 3: Gender + basic controls + lang
-reg va_u i1.genderenc age i.religionid langenc_* if va_u !=., vce(robust)
+reg va_u i1.genderenc age age2 i.religionid langenc_* if va_u !=., vce(robust)
 outreg2 using "`path'\Output\Background_VA_Reg.doc", append label
 
 * Reg 4: Gender + basic controls + prof
-reg va_u i1.genderenc age i.religionid profession_short_* if va_u !=., vce(robust)
+reg va_u i1.genderenc age age2 i.religionid profession_short_* if va_u !=., vce(robust)
 outreg2 using "`path'\Output\Background_VA_Reg.doc", append label
 
 * Reg 5: Gender + basic controls + lang + prof
-reg va_u i1.genderenc age i.religionid langenc_* profession_short_* if va_u !=., vce(robust)
+reg va_u i1.genderenc age age2 i.religionid langenc_* profession_short_* if va_u !=., vce(robust)
 coefplot, drop(_cons) title(VA and background variables) subtitle(Unshrunk VA)
 graph export "`path'/Output/Background_VA_coeffs_unshrunk.png", as(png) replace
 outreg2 using "`path'\Output\Background_VA_Reg.doc", append label
@@ -220,19 +239,19 @@ keep if med_appt_date < date("13Oct2023","DMY")
 egen numcases = count(med_appt_date), by(mediator_id)
 
 * Collapse
-collapse va_s va_u numcases genderenc age religionid langenc_* profession_short_*, by(mediator_id)
+collapse va_s va_u numcases genderenc age age2 religionid langenc_* profession_short_*, by(mediator_id)
 
 *** VA Shrunk 
 ** Regressions
 	reg numcases va_s, vce(robust)
 	outreg2 using "`path'\Output\Background_VA_assign_Reg.doc", replace label
-	reg numcases va_s i1.genderenc, vce(robust)
+	reg numcases va_s i1.genderenc c.va_s#i1.genderenc, vce(robust)
 	outreg2 using "`path'\Output\Background_VA_assign_Reg.doc", append label
-	reg numcases va_s i1.genderenc age i.religionid langenc_*, vce(robust)
+	reg numcases va_s i1.genderenc c.va_s#i1.genderenc age age2 i.religionid langenc_*, vce(robust)
 	outreg2 using "`path'\Output\Background_VA_assign_Reg.doc", append label
-	reg numcases va_s i1.genderenc age i.religionid profession_short_*, vce(robust)
+	reg numcases va_s i1.genderenc c.va_s#i1.genderenc age age2 i.religionid profession_short_*, vce(robust)
 	outreg2 using "`path'\Output\Background_VA_assign_Reg.doc", append label
-	reg numcases va_s i1.genderenc age i.religionid langenc_* profession_short_*, vce(robust)
+	reg numcases va_s i1.genderenc c.va_s#i1.genderenc age age2 i.religionid langenc_* profession_short_*, vce(robust)
 	outreg2 using "`path'\Output\Background_VA_assign_Reg.doc", append label
 
 ** Plot va_s and number cases
@@ -274,15 +293,15 @@ drop lprobust_*
 
 *** VA unshrunk	
 ** Regressions
-	reg numcases va_u if va_s !=., vce(robust)
+	reg numcases va_u, vce(robust)
 	outreg2 using "`path'\Output\Background_VA_assign_Reg.doc", append label
-	reg numcases va_u i1.genderenc if va_s !=., vce(robust)
+	reg numcases va_u i1.genderenc c.va_u#i1.genderenc, vce(robust)
 	outreg2 using "`path'\Output\Background_VA_assign_Reg.doc", append label
-	reg numcases va_u i1.genderenc age i.religionid langenc_* if va_s !=., vce(robust)
+	reg numcases va_u i1.genderenc c.va_u#i1.genderenc age age2 i.religionid langenc_*, vce(robust)
 	outreg2 using "`path'\Output\Background_VA_assign_Reg.doc", append label
-	reg numcases va_u i1.genderenc age i.religionid profession_short_*  if va_s !=., vce(robust)
+	reg numcases va_u i1.genderenc c.va_u#i1.genderenc age age2 i.religionid profession_short_* , vce(robust)
 	outreg2 using "`path'\Output\Background_VA_assign_Reg.doc", append label
-	reg numcases va_u i1.genderenc age i.religionid langenc_* profession_short_*  if va_s !=., vce(robust)
+	reg numcases va_u i1.genderenc c.va_u#i1.genderenc age age2 i.religionid langenc_* profession_short_*, vce(robust)
 	outreg2 using "`path'\Output\Background_VA_assign_Reg.doc", append label
 
 ** Plot va_u and number cases
@@ -311,7 +330,8 @@ drop lprobust_*
 
 	
 /*******************************************************************************
-	ANALYSIS: Caseload
+	ANALYSIS: Regressions of mean daily cases on a 4 month period
+	on VA and different covariates
 *******************************************************************************/
 
 local datapull = "07022024" // "11062023" //"05102022" //  "27022023" 
@@ -369,7 +389,7 @@ use "`path'/Data_Clean/cases_cleaned_`datapull'.dta", clear
 	*/
 	
 // Collapse at mediator-day level
-collapse (count) id (mean) va_s va_u genderenc age religionid langenc_* profession_short_*, by(mediator_id num_days)
+collapse (count) id (mean) va_s va_u genderenc age age2 religionid langenc_* profession_short_*, by(mediator_id num_days)
 rename id caseload_daily // daily caseload variable
 
 // Create observations for the days in which the mediators had no case
@@ -396,30 +416,30 @@ rename (va_ss va_uu) (va_s va_u)
 */
 	
 // Create mean caseload during this period
-collapse (mean) caseload_daily va_s va_u genderenc age religionid langenc_* profession_short_*, by(mediator_id)
+collapse (mean) caseload_daily va_s va_u genderenc age age2 religionid langenc_* profession_short_*, by(mediator_id)
 
 // Regressions
 	// Shrunk
 	reg caseload_daily va_s if va_s !=., vce(robust)
 	outreg2 using "`path'\Output\Background_VA_caseload_Reg.doc", replace label
-	reg caseload_daily va_s i1.genderenc if va_s !=., vce(robust)
+	reg caseload_daily va_s i1.genderenc c.va_s#i1.genderenc if va_s !=., vce(robust)
 	outreg2 using "`path'\Output\Background_VA_caseload_Reg.doc", append label
-	reg caseload_daily va_s i1.genderenc age i.religionid langenc_* if va_s !=., vce(robust)
+	reg caseload_daily va_s i1.genderenc c.va_s#i1.genderenc age age2 i.religionid langenc_* if va_s !=., vce(robust)
 	outreg2 using "`path'\Output\Background_VA_caseload_Reg.doc", append label
-	reg caseload_daily va_s i1.genderenc age i.religionid profession_short_*  if va_s !=., vce(robust)
+	reg caseload_daily va_s i1.genderenc c.va_s#i1.genderenc age age2 i.religionid profession_short_*  if va_s !=., vce(robust)
 	outreg2 using "`path'\Output\Background_VA_caseload_Reg.doc", append label
-	reg caseload_daily va_s i1.genderenc age i.religionid langenc_* profession_short_*  if va_s !=., vce(robust)
+	reg caseload_daily va_s i1.genderenc c.va_s#i1.genderenc age age2 i.religionid langenc_* profession_short_*  if va_s !=., vce(robust)
 	outreg2 using "`path'\Output\Background_VA_caseload_Reg.doc", append label
 	// Unshrunk
 	reg caseload_daily va_u, vce(robust)
 	outreg2 using "`path'\Output\Background_VA_caseload_Reg.doc", append label
-	reg caseload_daily va_u i1.genderenc, vce(robust)
+	reg caseload_daily va_u i1.genderenc c.va_u#i1.genderenc , vce(robust)
 	outreg2 using "`path'\Output\Background_VA_caseload_Reg.doc", append label
-	reg caseload_daily va_u i1.genderenc age i.religionid langenc_*, vce(robust)
+	reg caseload_daily va_u i1.genderenc c.va_u#i1.genderenc age age2 i.religionid langenc_*, vce(robust)
 	outreg2 using "`path'\Output\Background_VA_caseload_Reg.doc", append label
-	reg caseload_daily va_u i1.genderenc age i.religionid profession_short_* , vce(robust)
+	reg caseload_daily va_u i1.genderenc c.va_u#i1.genderenc age age2 i.religionid profession_short_* , vce(robust)
 	outreg2 using "`path'\Output\Background_VA_caseload_Reg.doc", append label
-	reg caseload_daily va_u i1.genderenc age i.religionid langenc_* profession_short_*, vce(robust)
+	reg caseload_daily va_u i1.genderenc c.va_u#i1.genderenc age age2 i.religionid langenc_* profession_short_*, vce(robust)
 	outreg2 using "`path'\Output\Background_VA_caseload_Reg.doc", append label
 	
 
