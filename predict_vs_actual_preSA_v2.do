@@ -15,18 +15,20 @@ local min_cases = 4
 	 Smart Assignment
 ******************************************************************/
 
-import delimited "`path'\Data_Raw\study_case_last_action_2024-03-13T09_25_08.693152Z.csv", clear
+*import delimited "`path'\Data_Raw\study_case_last_action_2024-03-13T09_25_08.693152Z.csv", clear
 
-drop if is_test == "true" // Drop technical testing cases
+import delimited "`path'\Data_Raw\Vw_All_Random_Study_Case_20032024.csv", clear
 
-tab acceptance_status
+drop if istest == "true" // Drop technical testing cases
 
-keep if acceptance_status == "accepted" | acceptance_status == "rejected" // Keep only accepted and rejected cases
+tab acceptanceorerrorstatus
 
-drop id
-rename case_id id
+keep if acceptanceorerrorstatus == "accepted" | acceptanceorerrorstatus == "rejected" // Keep only accepted and rejected cases
 
-keep acceptance_status id
+*drop id
+*rename case_id id
+
+keep acceptanceorerrorstatus id
 
 tempfile SA
 save `SA'
@@ -81,7 +83,7 @@ use "`path'\Data_Clean\cases_cleaned_`datapull'.dta", clear
 collapse va_shrunk va_unshrunk mediator_d, by(mediator_id)
 
 
-/*******************************************************************
+*******************************************************************
 *******************************************************************
 
 
@@ -92,14 +94,19 @@ collapse va_shrunk va_unshrunk mediator_d, by(mediator_id)
 
 
 // Merge with more recent cases
-merge 1:m mediator_id using "`path'\Data_Clean\cases_cleaned_13032024"
+merge 1:m mediator_id using "`path'\Data_Clean\cases_cleaned_20032024"
 drop if _merge == 2
 drop _merge
 
 merge 1:1 id using `SA'
 keep if _merge == 3
 
-keep if acceptance_status == "accepted"
+count if va_shrunk != . & acceptanceorerrorstatus == "accepted"
+count if va_shrunk == . & acceptanceorerrorstatus == "accepted"
+count if va_shrunk != . & acceptanceorerrorstatus == "rejected"
+count if va_shrunk == . & acceptanceorerrorstatus == "rejected"
+
+keep if acceptanceorerrorstatus == "accepted"
 
 /*****************************************************************
 	 Predicted values calculation
@@ -137,7 +144,7 @@ corr case_outcome_agreement p_u
 	tw (scatter case_outcome_agreement p_s if p_s < 1 & p_s > 0, msize(tiny)) ///
 		(line lprobust_gx_us lprobust_eval if lprobust_eval < 1 & lprobust_eval > 0, sort lcolor(red)) ///
 		(line lprobust_CI_l_rb lprobust_eval if lprobust_eval < 1 & lprobust_eval > 0, sort lcolor(blue) lpattern(dash) mcolor(%30)) ///
-		(line lprobust_CI_r_rb lprobust_eval if lprobust_eval < 1 & lprobust_eval > 0, sort lcolor(blue) lpattern(dash) mcolor(%30) ///
+		(line lprobust_CI_r_rb lprobust_eval if lprobust_eval < 1 & lprobust_eval > 0 & lprobust_CI_r_rb<=1, sort lcolor(blue) lpattern(dash) mcolor(%30) ///
 		aspectratio(1)  xtitle("Predicted agreement rate") ytitle("Case outcome") ///
 		legend(pos(6) order(1 "Cases" 2 "Kernel reg" 3 "Confidence interval") cols(3))  ///
 		title("Shrunk VA") ///
@@ -160,8 +167,8 @@ grc1leg sa_shrunk sa_unshrunk, ycommon xcommon t1title("Smart Assignment")
 graph export "`path'/Output/pred_vs_outcome_kernel_SA.png", as(png) replace
 
 
+/*******************************************************************
 *******************************************************************
-*******************************************************************/
 
 
 
