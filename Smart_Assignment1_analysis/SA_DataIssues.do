@@ -1,29 +1,20 @@
+/*****************************************************************
+	 Smart Assignment data issues exploration (in construction)
+******************************************************************/
 
 version 17
 clear all
 
-*net install grc1leg, from( http://www.stata.com/users/vwiggins/)
-
-//Defining locals 
+*** Define locals 
 local path "C:\Users\didac\Dropbox\Arbiter Research\Data analysis"
 local datapull = "15062023" // "11062023" //"05102022" //  "27022023" 
-local min_cases = 4 
-
-
 
 *** Import and tempsave VA groups
-import delimited "`path'\Output\va_groups_pull15062023.csv", clear
+import delimited "`path'\Output\SA_VA_Groups.csv", clear
 tempfile va_groups
 save `va_groups'
 
-
-
-/*****************************************************************
-	 Smart Assignment
-******************************************************************/
-
-*import delimited "`path'\Data_Raw\study_case_last_action_2024-03-13T09_25_08.693152Z.csv", clear
-
+*** Smart assignment data
 import delimited "`path'\Data_Raw\Vw_All_Random_Study_Case_20032024.csv", clear
 
 drop if istest == "true" // Drop technical testing cases

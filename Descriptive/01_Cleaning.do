@@ -1,14 +1,5 @@
 /*******************************************************************************
-Project: World Bank Kenya Arbiter
-PIs: Anja Sautmann and Antoine Deeb
-Purpose: Data cleaning
-Author: Hamza Syed 
-Updated by: Didac Marti Pinto
-Instructions:
-- Specify at the beginning of the code the desired parameters, including the 
-date of the data pull. 
-- The data pulls 27022023 and 14062023 do not work with this version of the code
-because they have slightly different data formats
+	Clean historical Arbiter data
 *******************************************************************************/
 
 version 17
@@ -17,11 +8,11 @@ clear all
 
 //Defining locals for flexible decisions
 local path "C:\Users\didac\Dropbox\Arbiter Research\Data analysis"
-local cutoff = 300 //Number of days after which case is considered lost cause and also number of days before data pull where cases will be considered too recent
-local datapull = "25072023"  // "15062023" // "05102022" // "25072023" 
+local cutoff = 180 //Number of days after which case is considered lost cause and also number of days before data pull where cases will be considered too recent
+local datapull = "20092024" // "15062023" // "05102022" // "25072023" 
 local pandemic_start = "15032020"
 local pandemic_end = "30062021"
-local post_pandemic = 60 //number of days after pandemic to exclude
+local post_pandemic = 60 //number of days after pandemic to possibly exclude
 local relevant_cases = "1,11,12" //Select from the list below
 /*
  1  Children Custody and Maintenance        
@@ -47,6 +38,27 @@ local exclusion_issues = "1,2,3,4,5" //Select from list below
  6 Cases which are too new to be included
  7 Cases which came in during the pandemic
 */
+
+// Import and tempsave VA groups
+import delimited "`path'\Output\SA_VA_Groups.csv", clear // SA shrunk VA's
+tempfile va_s_groups
+save `va_s_groups'	
+import delimited using "`path'\Output\SA_VAu_Groups.csv", clear // SA unshrunk VA's
+tempfile va_u_groups // tempfile for merge
+save `va_u_groups'
+
+import delimited "`path'\Output\va_groups_pull09052024.csv", clear
+tempfile va_s_groups_postSA
+save `va_s_groups_postSA'
+import delimited "`path'\Output\va_u_groups_pull09052024.csv", clear	
+tempfile va_u_groups_postSA
+save `va_u_groups_postSA'	
+
+// Smart Assignment courtstations
+import delimited "`path'\Output\SA_Courts_10plus.csv", clear
+rename courtstation court_station
+tempfile SA_courts
+save `SA_courts'
 
 //Importing the raw data
 import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear 
@@ -123,7 +135,6 @@ import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear
 	label variable concl_date "Conclusion date"
 	label variable conclusion_date "Conclusion date (string)"
 
-
 /*******************************************************************************
 	OTHER VARIABLES CREATION AND CHANGES
 	- Encode relevant variables
@@ -131,7 +142,8 @@ import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear
 	- Outsheet issues
 	- Fix mediation session type
 *******************************************************************************/
-		
+
+
 //Encode some string variables
 	encode court_station, gen(courtstation)
 	encode referral_mode, gen(referralmode)
@@ -139,6 +151,27 @@ import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear
 	encode case_status, gen(casestatus)
 	encode court_type, g(courttype)
 	encode case_type, gen(casetype)
+	
+// High court and court of appeal indicator - Move to cleaning
+	gen highcourt = 0
+	replace highcourt = 1 if courttype == 4
+	gen courtofappeal = 0 
+	replace courtofappeal = 1 if courttype == 1
+	
+// Simplified case type
+	gen casetype_simplified = casetype
+	// Civil group
+	replace casetype_simplified = 13 if casetype == 2 // civil appeals
+	replace casetype_simplified = 13 if casetype == 3 // civil cases
+	// Family group
+	replace casetype_simplified = 14 if casetype == 6 // divorce
+	replace casetype_simplified = 14 if casetype == 9 // family appeals
+	replace casetype_simplified = 14 if casetype == 10 // family miscell
+	*replace casetype_simplified = 14 if casetype == 11 // matrimonial property
+	replace casetype_simplified = 14 if casetype == 12 // Succession and probate
+	label variable casetype_simplified "Case types simplified"
+	label define ct_simpl 1 "Children Custody and Maintenance" 4 "Commercial Cases" 5 "Criminal Cases" 6 "Divorce and Separation " 7 "Employment and Labour Relations Cases (ELRC)" 8 "Environment and Land Cases (ELC)" 11 "Matrimonial Property Cases" 12 "Succession (Probate & Administration - P&A)" 13 "Civil group" 14 "Family group"
+	label values casetype_simplified ct_simpl
 
 //Create case duration days based on mediator assignment
 	gen case_days_med = concl_date - med_appt_date if case_status != "PENDING" // There are a few negative values
@@ -153,45 +186,58 @@ import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear
 
 //Create issues variable
 	*Cases with no mediator ID
-		gen issue = 1 if missing(mediator_id)
-		label variable issue "Flag for cases with issues"
+		gen issue1 = 1 if missing(mediator_id)
+		label variable issue1 "Flag for missing mediator ID"
 
 	*Where mediator appointed before referral
 		gen gap = med_appt_date - ref_date
-		replace issue = 2 if gap < 0 & missing(issue)
+		gen issue2 = 2 if gap < 0
+		label variable issue2 "Flag Mediator appointed before referral"
 		drop gap
 
 	*Cases where mediator appointment date is missing but mediator assigned
-		replace issue = 3 if missing(med_appt_date) & !missing(mediator_id) & missing(issue)
+		gen issue3 = 3 if missing(med_appt_date) & !missing(mediator_id) 
+		label variable issue3 "Flag Mediator appointment date missing but mediator assigned"
 
 	*Check if there are cases with negative number of days (ask Wei to check)
-		replace issue = 4 if case_days_med < 0 & missing(issue)
+		gen issue4 = 4 if case_days_med < 0 
+		label variable issue4 "Flag Case conclusion date before mediator assignment"
 
 	*Checking for feasibility of case days
-		gen feasible_gap = date("`datapull'", "DMY") - med_appt_date
-		gen case_days_gap = feasible_gap - case_days_med
-		replace issue = 5 if case_days_gap < 0 & missing(issue)
+		gen feasible_gap = date("`datapull'", "DMY") - med_appt_date // Date data pull - Date appointment
+		gen case_days_gap = feasible_gap - case_days_med // (Date data pull - Date appointment) - (Date conclusion - Date Appointment)
+		gen issue5 = 5 if case_days_gap < 0 
 		drop feasible_gap case_days_gap
+		label variable issue5 "Flag Case conclusion date after data pull date"
 
 	*Flagging cases which came in x (cutoff) days before datapull
-		replace issue = 6 if date("`datapull'", "DMY") - med_appt_date < `cutoff'
+		gen issue6 = 6 if date("`datapull'", "DMY") - med_appt_date < `cutoff'
+		label variable issue6 "Flag Cases which are too new to be included"
 		
 	*Flagging pandemic cases (including x months post pandemic)
-		replace issue = 7 if date("`pandemic_start'", "DMY") < ref_date & (date("`pandemic_end'", "DMY") + `post_pandemic') > ref_date
+		gen issue7 = 7 if date("`pandemic_start'", "DMY") < med_appt_date & (date("`pandemic_end'", "DMY") + `post_pandemic') > med_appt_date
+		label variable issue7 "Flag Cases which mediator was apptd during the pandemic"
+		
 
 	*Labelling issues
 		label define issues 1 "Missing mediator ID" 2 "Mediator appointed before referral" 3 "Mediator appointment date missing but mediator assigned" 4 "Case conclusion date before mediator assignment" 5 "Case days since appointment more than number of days since appointment" 6 "Cases which are too new to be included" 7 "Cases which came in during the pandemic"
-		label values issue issues
+		label values issue1 issues
+		label values issue2 issues
+		label values issue3 issues
+		label values issue4 issues
+		label values issue5 issues
+		label values issue6 issues
+		label values issue7 issues
 
 	*Outsheeting issue cases
 		preserve
-		keep if inlist(issue, `exclusion_issues')
-		keep id mediator_id mediator_appointment_date referral_date case_days case_days_med issue
+		keep if inlist(issue1, `exclusion_issues') | inlist(issue2, `exclusion_issues') | inlist(issue3, `exclusion_issues') | inlist(issue4, `exclusion_issues') |  inlist(issue5, `exclusion_issues') | inlist(issue6, `exclusion_issues') | inlist(issue7, `exclusion_issues')
+		keep id mediator_id mediator_appointment_date referral_date case_days case_days_med issue1 issue2 issue3 issue4 issue5 
 		export excel using "`path'/Data_Clean/issues_`datapull'.xlsx", firstrow(variables) replace
 		restore
 	
 //Create exclusion variable
-	gen exclusion = 1 if inlist(issue, `exclusion_issues')
+	gen exclusion = 1 if inlist(issue1, `exclusion_issues') | inlist(issue2, `exclusion_issues') | inlist(issue3, `exclusion_issues') | inlist(issue4, `exclusion_issues') |  inlist(issue5, `exclusion_issues') | inlist(issue6, `exclusion_issues') | inlist(issue7, `exclusion_issues')
 	label variable exclusion "Flag for cases to be excluded due to issues"
 		
 //Create usable case variable 
@@ -264,7 +310,48 @@ import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear
 //Create a flag for whether the case was pre rollout or post
 	gen post_rollout = 1 if med_appt_date >= rollout
 	replace post_rollout = 0 if missing(post_rollout)
-	label variable post_rollout "Flag for whether the assignment was done after rollout of cadaster/arbiter"			
+	label variable post_rollout "Flag for whether the assignment was done after rollout of cadaster/arbiter"		
+	
+/*******************************************************************************
+	ADD VA'S
+*******************************************************************************/
+
+	// Courts in SA
+	merge m:1 court_station using `SA_courts'
+	gen court_station_inSA = 1 if _merge == 3
+	replace court_station_inSA = 1 if _merge == 1
+	drop _merge
+
+	// Shrunk VA
+	merge m:1 mediator_id using `va_s_groups'
+	drop _merge
+	rename tv va_s
+	label variable va_s "Value Added (shrunk)"
+	rename group_tv group_va_s
+	label variable group_va_s "Value Added group (shrunk)"
+	
+	// Unshrunk VA
+	merge m:1 mediator_id using `va_u_groups'
+	drop _merge
+	label variable va_u "Value Added (unshrunk)"
+	label variable group_va_u "Value Added group (shrunk)"
+	
+	// Shrunk VA post-SA
+	merge m:1 mediator_id using `va_s_groups_postSA'
+	drop _merge
+	rename tv va_s_postSA
+	rename group_tv group_va_s_postSA
+	label variable group_va_s_postSA "Value Added group (shrunk) - Post-SA"
+	label variable va_s_postSA "Value Added (unshrunk) - Post-SA"
+	
+	// Unshrunk VA post-SA
+	merge m:1 mediator_id using `va_u_groups_postSA'
+	drop _merge
+	label variable va_u "Value Added (unshrunk) - Post-SA"
+	label variable group_va_u "Value Added group (shrunk) - Post-SA"
+	rename va_u va_u_postSA
+	rename group_va_u group_va_u_postSA
+		
 /*******************************************************************************
 	LABEL REMAINING VARIABLES
 *******************************************************************************/
@@ -286,11 +373,11 @@ import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear
 	label variable referral_mode "Referred by court, screened or requested by parties (string)"
 	label variable session_type "Mediation session type - in person, online, hybrid"
 	label variable updated_at "Case updation date in cadaster/arbiter (string)"
-	label variable appointment_data_entry_timestamp "Timestamp of when mediator appointment was entered into the data"
-	label variable appointed_at_case_creation_time "Flag for whether mediator was appointed at case creation"
-	label variable appointer_user_id "Identifier for appointing officer"
-	label variable defendant_languages "Languages spoken by defendants"
-	label variable plaintiff_languages "Languages spoken by plaintiffs"
+	*label variable appointment_data_entry_timestamp "Timestamp of when mediator appointment was entered into the data"
+	*label variable appointed_at_case_creation_time "Flag for whether mediator was appointed at case creation"
+	*label variable appointer_user_id "Identifier for appointing officer"
+	*label variable defendant_languages "Languages spoken by defendants"
+	*label variable plaintiff_languages "Languages spoken by plaintiffs"
 	label variable courtstation "Location of court (encoded)"
 	label variable referralmode "Referred by court, screened or requested by parties (encoded)"
 	label variable caseoutcome "Case outcome if concluded (encoded)"
@@ -302,6 +389,7 @@ import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear
 
 //Saving cleaned file
 	save "`path'/Data_Clean/cases_cleaned_`datapull'.dta", replace
+	export delimited using "`path'/Data_Clean/cases_cleaned_`datapull'.csv", replace
 	
 /*
 	// Rename variables
