@@ -4,59 +4,67 @@
 
 version 17
 clear all
-*ssc install fre
 
 //Defining locals for flexible decisions
 local path "C:\Users\didac\Dropbox\Arbiter Research\Data analysis"
-local cutoff = 300 // Number of days before data pull where cases will be considered too recent
-local datapull = "06062024" // "18042024"  // "15062023" // "05102022" // "25072023" 
-local pandemic_start = "15032020"
-local pandemic_end = "30062021"
-local post_pandemic = 60 //number of days after pandemic to exclude
-local relevant_cases = "1,11,12" //Select from the list below
-/*
- 1  Children Custody and Maintenance        
- 2  Civil Appeals    
- 3  Civil Cases   
- 4  Commercial Cases  
- 5  Criminal Cases 
- 6  Divorce and Separation 
- 7  Employment and Labour Relations Cases (ELRC) 
- 8  Environment and Land Cases (ELC)        
- 9  Family Appeals  
- 10 Family Miscellaneous  
- 11 Matrimonial Property Cases           
- 12 Succession (Probate & Administration - P&A)
-*/
-local exclusion_issues = "1,2,3,4,5" //Select from list below
-/* 
- 1 Missing mediator ID
- 2 Mediator appointed before referral
- 3 Mediator appointment date missing but mediator assigned
- 4 Case conclusion date before mediator assignment
- 5 Case days since appointment more than number of days since appointment
- 6 Cases which are too new to be included
- 7 Cases which came in during the pandemic
-*/
+local datapull = "17102024" // "18042024"  // "15062023" // "05102022" // "25072023" 
 
+// Import and tempsave SA VA
+	// Shrunk
+	import delimited "`path'\Output\SA_VA_Groups.csv", clear // SA shrunk VA's
+	rename tv va_s
+	label variable va_s "Value Added (shrunk)"
+	rename group_tv group_va_s
+	label variable group_va_s "Value Added group (shrunk)"
+	tempfile va_s_groups
+	save `va_s_groups'
+	// Unshrunk
+	import delimited using "`path'\Output\SA_VAu_Groups.csv", clear // SA unshrunk VA's
+	label variable va_u "Value Added (unshrunk)"
+	label variable group_va_u "Value Added group (shrunk)"
+	tempfile va_u_groups // tempfile for merge
+	save `va_u_groups'
 
-// Import and tempsave VA groups
-import delimited "`path'\Output\SA_VA_Groups.csv", clear // SA shrunk VA's
-tempfile va_s_groups
-save `va_s_groups'	
-import delimited using "`path'\Output\SA_VAu_Groups.csv", clear // SA unshrunk VA's
-tempfile va_u_groups // tempfile for merge
-save `va_u_groups'
+// Import and tempsave eligible mediators for each case 
+import delimited "`path'\Data_Raw\Studyeligiblemediator_07112024.csv", clear
+drop if mediatorid == .
 
-import delimited "`path'\Output\va_groups_pull09052024.csv", clear
-tempfile va_s_groups_postSA
-save `va_s_groups_postSA'
-import delimited "`path'\Output\va_u_groups_pull09052024.csv", clear	
-tempfile va_u_groups_postSA
-save `va_u_groups_postSA'	
+	// Add VA
+	rename mediatorid mediator_id
+	merge m:1 mediator_id using `va_s_groups'
+	drop if _merge == 2
+	drop _merge
+	merge m:1 mediator_id using `va_u_groups'
+	drop if _merge == 2
 
-// Import smart assignment data
+	// Reshape
+	drop id
+	rename caseid id
+	rename mediator_id list_mid_
+	rename rejectreason list_rejectreason_
+	rename rejectreasoncourtnamedby list_rejectreason_court_
+	rename rejectreasonother list_rejectreason_other_
+	rename (va_s group_va_s va_u group_va_u) ///
+	(list_va_s_ list_group_va_s_ list_va_u_ list_group_va_u_)
+	
+	keep id rank list_mid_ list_rejectreason_ list_rejectreason_court_ ///
+	list_rejectreason_other_ list_va_s_ list_group_va_s_ list_va_u_ ///
+	list_group_va_u_
+
+	reshape wide list_mid_ list_rejectreason_ list_rejectreason_court_ ///
+	list_rejectreason_other_ list_va_s_ list_group_va_s_ list_va_u_ ///
+	list_group_va_u_ , i(id) j(rank)
+	
+	tempfile eligiblelist // tempfile for merge
+	save `eligiblelist'
+	
+// Import smart assignment data 
 import delimited "`path'\Data_Raw\Vw_All_Random_Study_Case_`datapull'.csv", clear
+
+	// Manually change missing mediator ID's
+	*replace mediator_id = 525 if id == 16162
+	*replace mediator_id = 175 if id == 17285
+	
 
 /*******************************************************************************
 	CREATE CASE DATE VARIABLES
@@ -138,7 +146,7 @@ import delimited "`path'\Data_Raw\Vw_All_Random_Study_Case_`datapull'.csv", clea
 	- Outsheet issues
 	- Fix mediation session type
 *******************************************************************************/
-		
+
 //Encode some string variables
 	encode court_station, gen(courtstation)
 	encode referral_mode, gen(referralmode)
@@ -152,6 +160,8 @@ import delimited "`path'\Data_Raw\Vw_All_Random_Study_Case_`datapull'.csv", clea
 	replace case_days_med = date("`datapull'", "DMY") - med_appt_date if missing(case_days_med) 
 	label variable case_days_med "Number of days between mediator assignment and case conclusion/datapull"	
 
+/*	
+	
 //Create relevant cases variable
 	fre casetype // Frequency table
 	gen relevantcase = 1 if inlist(casetype,`relevant_cases')
@@ -236,9 +246,9 @@ import delimited "`path'\Data_Raw\Vw_All_Random_Study_Case_`datapull'.csv", clea
 //Change mediation session type: based on Wei's suggestion, assign in-person to pre-pandemic cases with missing session type
 	tab session_type,m
 	replace session_type = "In-Person" if missing(session_type) & ref_date < date("31032020", "DMY")
-						
+*/					
 /*******************************************************************************
-	ADD VA'S
+	ADD VA'S AND ALL ELIGIBLE MEDIATORS LIST
 *******************************************************************************/
 
 	// Shrunk VA
@@ -249,35 +259,17 @@ import delimited "`path'\Data_Raw\Vw_All_Random_Study_Case_`datapull'.csv", clea
 		// _merge == 2: Eligible mediators who had no case assigned during SA 
 	drop if _merge == 2
 	drop _merge
-	rename tv va_s
-	label variable va_s "Value Added (shrunk)"
-	rename group_tv group_va_s
-	label variable group_va_s "Value Added group (shrunk)"
 	
 	// Unshrunk VA
 	merge m:1 mediator_id using `va_u_groups'
 	drop if _merge == 2
 	drop _merge
-	label variable va_u "Value Added (unshrunk)"
-	label variable group_va_u "Value Added group (shrunk)"
 	
-	// Shrunk VA post-SA
-	merge m:1 mediator_id using `va_s_groups_postSA'
-	drop if _merge == 2
+	// Eligible mediators list
+	merge m:1 id using `eligiblelist'
+	*drop if _merge == 1 // Non-merges because "all ineligible" - No need to drop
 	drop _merge
-	rename tv va_s_postSA
-	rename group_tv group_va_s_postSA
-	label variable group_va_s_postSA "Value Added group (shrunk) - Post-SA"
-	label variable va_s_postSA "Value Added (unshrunk) - Post-SA"
 	
-	// Unshrunk VA post-SA
-	merge m:1 mediator_id using `va_u_groups_postSA'
-	drop if _merge == 2
-	drop _merge
-	label variable va_u "Value Added (unshrunk) - Post-SA"
-	label variable group_va_u "Value Added group (shrunk) - Post-SA"
-	rename va_u va_u_postSA
-	rename group_va_u group_va_u_postSA
 	
 /*******************************************************************************
 	LABEL REMAINING VARIABLES
