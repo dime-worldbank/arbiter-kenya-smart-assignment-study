@@ -1,55 +1,70 @@
 /*******************************************************************************
-Project: World Bank Kenya Arbiter
-PIs: Anja Sautmann and Antoine Deeb
-Purpose: Data cleaning
-Author: Hamza Syed 
-Updated by: Didac Marti Pinto
-Instructions:
-- Specify at the beginning of the code the desired parameters, including the 
-date of the data pull. 
-- The data pulls 27022023 and 14062023 do not work with this version of the code
-because they have slightly different data formats
+	Clean Smart assignment data
 *******************************************************************************/
 
 version 17
 clear all
-*ssc install fre
 
 //Defining locals for flexible decisions
 local path "C:\Users\didac\Dropbox\Arbiter Research\Data analysis"
-local cutoff = 300 //Number of days after which case is considered lost cause and also number of days before data pull where cases will be considered too recent
-local datapull = "25072023"  // "15062023" // "05102022" // "25072023" 
-local pandemic_start = "15032020"
-local pandemic_end = "30062021"
-local post_pandemic = 60 //number of days after pandemic to exclude
-local relevant_cases = "1,11,12" //Select from the list below
-/*
- 1  Children Custody and Maintenance        
- 2  Civil Appeals    
- 3  Civil Cases   
- 4  Commercial Cases  
- 5  Criminal Cases 
- 6  Divorce and Separation 
- 7  Employment and Labour Relations Cases (ELRC) 
- 8  Environment and Land Cases (ELC)        
- 9  Family Appeals  
- 10 Family Miscellaneous  
- 11 Matrimonial Property Cases           
- 12 Succession (Probate & Administration - P&A)
-*/
-local exclusion_issues = "1,2,3,4,5" //Select from list below
-/* 
- 1 Missing mediator ID
- 2 Mediator appointed before referral
- 3 Mediator appointment date missing but mediator assigned
- 4 Case conclusion date before mediator assignment
- 5 Case days since appointment more than number of days since appointment
- 6 Cases which are too new to be included
- 7 Cases which came in during the pandemic
-*/
+local datapull = "17102024" // "18042024"  // "15062023" // "05102022" // "25072023" 
 
-//Importing the raw data
-import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear 
+// Import and tempsave SA VA
+	// Shrunk
+	import delimited "`path'\Output\SA_VA_Groups.csv", clear // SA shrunk VA's
+	rename tv va_s
+	label variable va_s "Value Added (shrunk)"
+	rename group_tv group_va_s
+	label variable group_va_s "Value Added group (shrunk)"
+	tempfile va_s_groups
+	save `va_s_groups'
+	// Unshrunk
+	import delimited using "`path'\Output\SA_VAu_Groups.csv", clear // SA unshrunk VA's
+	label variable va_u "Value Added (unshrunk)"
+	label variable group_va_u "Value Added group (shrunk)"
+	tempfile va_u_groups // tempfile for merge
+	save `va_u_groups'
+
+// Import and tempsave eligible mediators for each case 
+import delimited "`path'\Data_Raw\Studyeligiblemediator_07112024.csv", clear
+drop if mediatorid == .
+
+	// Add VA
+	rename mediatorid mediator_id
+	merge m:1 mediator_id using `va_s_groups'
+	drop if _merge == 2
+	drop _merge
+	merge m:1 mediator_id using `va_u_groups'
+	drop if _merge == 2
+
+	// Reshape
+	drop id
+	rename caseid id
+	rename mediator_id list_mid_
+	rename rejectreason list_rejectreason_
+	rename rejectreasoncourtnamedby list_rejectreason_court_
+	rename rejectreasonother list_rejectreason_other_
+	rename (va_s group_va_s va_u group_va_u) ///
+	(list_va_s_ list_group_va_s_ list_va_u_ list_group_va_u_)
+	
+	keep id rank list_mid_ list_rejectreason_ list_rejectreason_court_ ///
+	list_rejectreason_other_ list_va_s_ list_group_va_s_ list_va_u_ ///
+	list_group_va_u_
+
+	reshape wide list_mid_ list_rejectreason_ list_rejectreason_court_ ///
+	list_rejectreason_other_ list_va_s_ list_group_va_s_ list_va_u_ ///
+	list_group_va_u_ , i(id) j(rank)
+	
+	tempfile eligiblelist // tempfile for merge
+	save `eligiblelist'
+	
+// Import smart assignment data 
+import delimited "`path'\Data_Raw\Vw_All_Random_Study_Case_`datapull'.csv", clear
+
+	// Manually change missing mediator ID's
+	*replace mediator_id = 525 if id == 16162
+	*replace mediator_id = 175 if id == 17285
+	
 
 /*******************************************************************************
 	CREATE CASE DATE VARIABLES
@@ -131,7 +146,7 @@ import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear
 	- Outsheet issues
 	- Fix mediation session type
 *******************************************************************************/
-		
+
 //Encode some string variables
 	encode court_station, gen(courtstation)
 	encode referral_mode, gen(referralmode)
@@ -145,6 +160,8 @@ import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear
 	replace case_days_med = date("`datapull'", "DMY") - med_appt_date if missing(case_days_med) 
 	label variable case_days_med "Number of days between mediator assignment and case conclusion/datapull"	
 
+/*	
+	
 //Create relevant cases variable
 	fre casetype // Frequency table
 	gen relevantcase = 1 if inlist(casetype,`relevant_cases')
@@ -153,45 +170,58 @@ import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear
 
 //Create issues variable
 	*Cases with no mediator ID
-		gen issue = 1 if missing(mediator_id)
-		label variable issue "Flag for cases with issues"
+		gen issue1 = 1 if missing(mediator_id)
+		label variable issue1 "Flag for missing mediator ID"
 
 	*Where mediator appointed before referral
 		gen gap = med_appt_date - ref_date
-		replace issue = 2 if gap < 0 & missing(issue)
+		gen issue2 = 2 if gap < 0
+		label variable issue2 "Flag Mediator appointed before referral"
 		drop gap
 
 	*Cases where mediator appointment date is missing but mediator assigned
-		replace issue = 3 if missing(med_appt_date) & !missing(mediator_id) & missing(issue)
+		gen issue3 = 3 if missing(med_appt_date) & !missing(mediator_id) 
+		label variable issue3 "Flag Mediator appointment date missing but mediator assigned"
 
 	*Check if there are cases with negative number of days (ask Wei to check)
-		replace issue = 4 if case_days_med < 0 & missing(issue)
+		gen issue4 = 4 if case_days_med < 0 
+		label variable issue4 "Flag Case conclusion date before mediator assignment"
 
 	*Checking for feasibility of case days
 		gen feasible_gap = date("`datapull'", "DMY") - med_appt_date
 		gen case_days_gap = feasible_gap - case_days_med
-		replace issue = 5 if case_days_gap < 0 & missing(issue)
+		gen issue5 = 5 if case_days_gap < 0 
 		drop feasible_gap case_days_gap
+		label variable issue5 "Flag Case days since appointment more than number of days since appointment"
 
 	*Flagging cases which came in x (cutoff) days before datapull
-		replace issue = 6 if date("`datapull'", "DMY") - med_appt_date < `cutoff'
+		gen issue6 = 6 if date("`datapull'", "DMY") - med_appt_date < `cutoff'
+		label variable issue6 "Flag Cases which are too new to be included"
 		
 	*Flagging pandemic cases (including x months post pandemic)
-		replace issue = 7 if date("`pandemic_start'", "DMY") < ref_date & (date("`pandemic_end'", "DMY") + `post_pandemic') > ref_date
+		gen issue7 = 7 if date("`pandemic_start'", "DMY") < ref_date & (date("`pandemic_end'", "DMY") + `post_pandemic') > ref_date
+		label variable issue7 "Flag Cases which came in during the pandemic"
+		
 
 	*Labelling issues
 		label define issues 1 "Missing mediator ID" 2 "Mediator appointed before referral" 3 "Mediator appointment date missing but mediator assigned" 4 "Case conclusion date before mediator assignment" 5 "Case days since appointment more than number of days since appointment" 6 "Cases which are too new to be included" 7 "Cases which came in during the pandemic"
-		label values issue issues
+		label values issue1 issues
+		label values issue2 issues
+		label values issue3 issues
+		label values issue4 issues
+		label values issue5 issues
+		label values issue6 issues
+		label values issue7 issues
 
-	*Outsheeting issue cases
+	/*Outsheeting issue cases
 		preserve
-		keep if inlist(issue, `exclusion_issues')
-		keep id mediator_id mediator_appointment_date referral_date case_days case_days_med issue
+		keep if inlist(issue1, `exclusion_issues') | inlist(issue2, `exclusion_issues') | inlist(issue3, `exclusion_issues') | inlist(issue4, `exclusion_issues') |  inlist(issue5, `exclusion_issues') | inlist(issue6, `exclusion_issues') | inlist(issue7, `exclusion_issues')
+		keep id mediator_id mediator_appointment_date referral_date case_days case_days_med issue1 issue2 issue3 issue4 issue5 
 		export excel using "`path'/Data_Clean/issues_`datapull'.xlsx", firstrow(variables) replace
-		restore
+		restore*/
 	
 //Create exclusion variable
-	gen exclusion = 1 if inlist(issue, `exclusion_issues')
+	gen exclusion = 1 if inlist(issue1, `exclusion_issues') | inlist(issue2, `exclusion_issues') | inlist(issue3, `exclusion_issues') | inlist(issue4, `exclusion_issues') |  inlist(issue5, `exclusion_issues') | inlist(issue6, `exclusion_issues') | inlist(issue7, `exclusion_issues')
 	label variable exclusion "Flag for cases to be excluded due to issues"
 		
 //Create usable case variable 
@@ -216,55 +246,31 @@ import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear
 //Change mediation session type: based on Wei's suggestion, assign in-person to pre-pandemic cases with missing session type
 	tab session_type,m
 	replace session_type = "In-Person" if missing(session_type) & ref_date < date("31032020", "DMY")
-		
+*/					
 /*******************************************************************************
-	CREATE ARBITER ROLLOUT DATE VARIABLES
+	ADD VA'S AND ALL ELIGIBLE MEDIATORS LIST
 *******************************************************************************/
 
-//Generate rollout date for each courtstation
-	sort courtstation create_date
-	bys courtstation: egen rollout = min(create_date)
-	format rollout %td
-	label variable rollout "Rollout date of cadaster for the courtstation"
-	* Year
-	gen rollout_year = year(rollout)
-	format rollout_year %ty
-	label variable rollout_year "Rollout year of cadaster for the courtstation"
-	* Month-year
-	gen rollout_month = month(rollout)
-	format rollout_month %tm
-	gen rollout_month_year = ym(rollout_year,rollout_month)
-	format rollout_month_year %tm
-	label variable rollout_month_year "Rollout month and year of cadaster for the courtstation"
-	* Month
-	drop rollout_month
-	gen rollout_month = month(rollout)
-	label variable rollout_month "Rollout month of cadaster for the courtstation"
-
-//Generate first mediator assignment date for each courtstation
-	sort courtstation create_date
-	bys courtstation: egen first_med_assn = min(med_appt_date)
-	format first_med_assn %td
-	label variable first_med_assn "Date for first mediator assignment for the courtstation"
-	*Year
-	gen first_med_assn_year = year(first_med_assn)
-	format first_med_assn_year %ty
-	label variable first_med_assn_year "Year for first mediator assignment for the courtstation"
-	*Month-year
-	gen first_med_assn_month = month(first_med_assn)
-	format first_med_assn_month %tm
-	gen first_med_assn_month_year = ym(first_med_assn_year,first_med_assn_month)
-	format first_med_assn_month_year %tm
-	label variable first_med_assn_month_year "Month and year for first mediator assignment for the courtstation"
-	*Month
-	drop first_med_assn_month
-	gen first_med_assn_month = month(first_med_assn)
-	label variable first_med_assn_month "Month for first mediator assignment for the courtstation"
-
-//Create a flag for whether the case was pre rollout or post
-	gen post_rollout = 1 if med_appt_date >= rollout
-	replace post_rollout = 0 if missing(post_rollout)
-	label variable post_rollout "Flag for whether the assignment was done after rollout of cadaster/arbiter"			
+	// Shrunk VA
+	merge m:1 mediator_id using `va_s_groups'
+	tab acceptance_or_error_status if _merge == 1 
+		// _merge == 1: Non-accepted cases or missing mediator ID
+	tab acceptance_or_error_status if _merge == 2
+		// _merge == 2: Eligible mediators who had no case assigned during SA 
+	drop if _merge == 2
+	drop _merge
+	
+	// Unshrunk VA
+	merge m:1 mediator_id using `va_u_groups'
+	drop if _merge == 2
+	drop _merge
+	
+	// Eligible mediators list
+	merge m:1 id using `eligiblelist'
+	*drop if _merge == 1 // Non-merges because "all ineligible" - No need to drop
+	drop _merge
+	
+	
 /*******************************************************************************
 	LABEL REMAINING VARIABLES
 *******************************************************************************/
@@ -299,32 +305,13 @@ import delimited "`path'\Data_Raw\cases_raw_`datapull'.csv", clear
 	label variable casetype "Type of case (encoded)"
 	label variable number_of_defendant_languages "Number of defendent languages"
 	label variable number_of_plaintiff_languages "Number of plaintiff languages"
+	label variable group "Treatment or Control"
+	label variable is_test "Technical test indicator"
+	label variable reject_reason "First reject reason"
+	label variable recommendation_rank "Rank of the accepted mediator"
 
-//Saving cleaned file
-	save "`path'/Data_Clean/cases_cleaned_`datapull'.dta", replace
 	
-/*
-	// Rename variables
-if "`datapull'" == "14062023" { 
-rename (id referraldate casenumber originalcasenumber valuemode casevalue ///
-casestatus outcomename agreementmode caseoutcomeagreement pendingreason ///
-mediatorappointmentdate conclusiondate forwardedforpaymentdate ///
-casedays mediatorappointmentdays numberofplaintifflanguages ///
-numberofdefendantlanguages casetype courtdivision courttype courtstation ///
-inferredcourt mediatorid referralmode sessiontype ///
-completioncertificatedate createdat updatedat ///
- appointmentdataentrytimestamp appointedatcasecreationtime ///
-appointeruserid oldmediatormac newmediatormac defendantlanguages ///
- plaintifflanguages) ///
-(id referral_date case_number original_case_number value_mode case_value ///
-case_status outcome_name agreement_mode case_outcome_agreement pending_reason ///
-mediator_appointment_date conclusion_date forwarded_for_payment_date ///
-case_days mediator_appointment_days number_of_plaintiff_languages ///
-number_of_defendant_languages case_type court_division court_type court_station ///
-inferred_court mediator_id referral_mode session_type ///
-completion_certificate_date created_at updated_at ///
-appointment_data_entry_timestamp appointed_at_case_creation_time ///
-appointer_user_id old_mediator_mac new_mediator_mac defendant_languages ///
-plaintiff_languages) 
-}
-*/
+//Saving cleaned file
+	save "`path'/Data_Clean/smartassign_cleaned_`datapull'.dta", replace
+
+* Missing mediator_id despite acceptance?
