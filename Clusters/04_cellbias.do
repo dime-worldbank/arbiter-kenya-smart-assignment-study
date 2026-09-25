@@ -8,7 +8,7 @@
 	*** Define locals 
 	local path "C:\Users\didac\Dropbox\Arbiter Research\Data analysis"
 	local datapull =  "20260513" 
-	local cluster_n = 20
+	local cluster_n = 40
 	
 	*** Use accr2ct data to extract locals
 	use "`path'\Data_Clean\accred2ct_`datapull'.dta", clear
@@ -40,19 +40,19 @@
 		* Baseline clusters
 		*import delimited "`path'\Data_Clean\bias\cell_agreement_bias_20clusters.csv", clear
 		
-		* Baseline clusters update
+		/* Baseline clusters update
 		import delimited "`path'\Data_Clean\bias\cell_agreement_bias_20clusters_control_june30.csv", clear
 		tempfile 20control
 		save `20control'
 		import delimited "`path'\Data_Clean\bias\cell_agreement_bias_20clusters_treatment_june30.csv", clear
-		append using `20control'
+		append using `20control'*/
 		
-		/* Strenght
+		* Strenght
 		import delimited "`path'\Data_Clean\bias\cell_agreement_bias_newcluster_20clusters_control_june30.csv", clear
 		tempfile 20control
 		save `20control'
 		import delimited "`path'\Data_Clean\bias\cell_agreement_bias_newcluster_20clusters_treatment_june30.csv", clear
-		append using `20control'*/
+		append using `20control'
 	
 	}
 	
@@ -82,20 +82,20 @@
 		*gen arm_side = "treatment"	
 		*append using `40control'
 		
-		* Baseline clusters update
+		/* Baseline clusters update
 		import delimited "`path'\Data_Clean\bias\cell_agreement_bias_40clusters_control_june30.csv", clear		  
 		tempfile 40control
 		save `40control'		
 		import delimited "`path'\Data_Clean\bias\cell_agreement_bias_40clusters_treatment_june30.csv", clear		
-		append using `40control'
+		append using `40control'*/
 	
 		* Strength
-		*import delimited "`path'\Data_Clean\bias\cell_agreement_bias_newcluster_40clusters_control_june30.csv", clear	
-		*tempfile 40control
-		*save `40control'
+		import delimited "`path'\Data_Clean\bias\cell_agreement_bias_newcluster_40clusters_control_june30.csv", clear	
+		tempfile 40control
+		save `40control'
 		* Strength
-		*import delimited "`path'\Data_Clean\bias\cell_agreement_bias_newcluster_40clusters_treatment_june30.csv", clear
-		*append using `40control'
+		import delimited "`path'\Data_Clean\bias\cell_agreement_bias_newcluster_40clusters_treatment_june30.csv", clear
+		append using `40control'
 	}
 	
 	
@@ -106,15 +106,15 @@
 	save `bias'
 
 	
-	*** IMPORT CLUSTER CONNECTIONS
-	import delimited "`path'\Output\Clusters\cl_connect2arm_`cluster_n'_`datapull'.csv", clear
+	*** IMPORT CELL CONNECTIONS
+	*import delimited "`path'\Output\Clusters\cl_connect2arm_`cluster_n'_`datapull'.csv", clear
 	
-	/*import delimited "`path'\Output\Clusters\cl_connect2arm_strength_`cluster_n'_`datapull'.csv", clear
+	import delimited "`path'\Output\Clusters\cl_connect2arm_strength_`cluster_n'_`datapull'.csv", clear
 	rename n_cases_a totalcases_cs_ct
 	*rename arm arm_side
 	replace arm_side = "treatment" if arm_side == "Treatment"
 	replace arm_side = "control" if arm_side == "Control"
-	rename total_link connect_opposite_arm*/
+	rename total_link connect_opposite_arm
 	
 	/*import delimited "`path'\Output\Clusters\cl_connect2arm_shared_`cluster_n'_`datapull'.csv", clear
 	rename n_active_mediators totalcases_cs_ct
@@ -180,7 +180,7 @@
 	
 	**** EXCLUDE OBSERVATIONS
 	* Arm side - Exclude highest connections
-	_pctile connect_opposite_arm, p(76)
+	_pctile connect_opposite_arm, p(70)
 	local p1 = r(r1)
 	di `p1'
 
